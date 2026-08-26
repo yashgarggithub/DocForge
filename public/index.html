@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DocForge — Source-aware API documentation</title>
+    <style>
+      :root { color-scheme: dark; --bg:#09111f; --panel:#101d30; --line:#20324b; --text:#e8f0fb; --muted:#8da2bb; --accent:#6ee7c7; --orange:#f7b267; }
+      * { box-sizing:border-box; } body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; background:radial-gradient(circle at 20% 0%,#172943 0,#09111f 44%); color:var(--text); min-height:100vh; }
+      main { max-width:1180px; margin:0 auto; padding:38px 22px 70px; } .eyebrow { color:var(--accent); letter-spacing:.14em; text-transform:uppercase; font-size:12px; font-weight:700; } h1 { font-size:clamp(34px,6vw,68px); letter-spacing:-.055em; line-height:.98; max-width:730px; margin:14px 0; } .lede { color:var(--muted); font-size:18px; max-width:650px; line-height:1.55; }
+      .form { display:flex; gap:10px; margin:28px 0 22px; max-width:800px; } input { flex:1; border:1px solid var(--line); background:#0d1929; border-radius:10px; padding:15px 16px; color:var(--text); font:inherit; } button { border:0; border-radius:10px; padding:0 18px; font:inherit; font-weight:700; cursor:pointer; background:var(--accent); color:#06201c; } button.secondary { background:#1c2b41; color:var(--text); padding:11px 14px; }
+      #status { min-height:24px; color:var(--orange); } .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:24px 0; } .card { background:rgba(16,29,48,.88); border:1px solid var(--line); border-radius:14px; padding:18px; } .stat-value { display:block; font-size:29px; font-weight:750; margin-top:7px; } .stat-label { color:var(--muted); font-size:13px; }
+      .section { margin-top:22px; } .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:10px; } h2 { font-size:20px; margin:0; } .route { display:grid; grid-template-columns:95px 1fr auto; gap:14px; align-items:center; border-top:1px solid var(--line); padding:15px 0; } .method { color:var(--accent); font-weight:800; font-size:12px; } code { color:#c7d7ec; background:#0a1524; padding:3px 7px; border-radius:5px; } .route small { color:var(--muted); } .pill { color:#a9bbd2; background:#1b2c43; border-radius:999px; padding:5px 9px; font-size:12px; } .warning { color:var(--orange); border-left:3px solid var(--orange); padding:10px 12px; background:#2b2114; margin:7px 0; border-radius:5px; }
+      pre { overflow:auto; background:#081321; padding:16px; border-radius:10px; color:#b9cce4; line-height:1.5; } .hidden { display:none; } @media(max-width:700px){.form{flex-direction:column}.form button{height:48px}.stats{grid-template-columns:repeat(2,1fr)}.route{grid-template-columns:70px 1fr}.route .pill{grid-column:2}}
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">DocForge / local project intelligence</div>
+      <h1>Turn source code into documentation people can use.</h1>
+      <p class="lede">Start with a local JavaScript project. DocForge extracts Express routes, traces React consumers, infers request and response contracts, and surfaces the gaps an AI layer can enrich safely.</p>
+      <div class="form"><input id="projectPath" value="/Users/yashgarg/TokenWise" aria-label="Local project path" /><button id="analyze">Analyze project</button></div>
+      <div id="status"></div>
+      <section id="results" class="hidden">
+        <div class="stats" id="stats"></div>
+        <div class="card section"><div class="section-head"><h2>Detected stack</h2><div><button class="secondary" id="download">Analysis JSON</button> <button class="secondary" id="downloadOpenapi">OpenAPI JSON</button> <button class="secondary" id="downloadMarkdown">Markdown</button></div></div><div id="stack"></div></div>
+        <div class="card section"><div class="section-head"><h2>API surface</h2><span class="pill" id="routeCount"></span></div><div id="routes"></div></div>
+        <div class="card section"><h2>Frontend integration</h2><div id="calls"></div></div>
+        <div class="card section"><h2>Configuration</h2><pre id="env"></pre></div>
+        <div class="card section"><h2>Analysis warnings</h2><div id="warnings"></div></div>
+      </section>
+    </main>
+    <script>
+      let latest = null;
+      const $ = id => document.getElementById(id);
+      const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+      function render(data) {
+        latest = data; $('results').classList.remove('hidden');
+        $('stats').innerHTML = Object.entries({Files:data.summary.files, Routes:data.summary.routes, 'Frontend calls':data.summary.frontendCalls, Warnings:data.summary.warnings}).map(([label,value]) => `<div class="card"><span class="stat-label">${label}</span><span class="stat-value">${value}</span></div>`).join('');
+        $('stack').innerHTML = data.stack.map(item => `<span class="pill">${esc(item)}</span> `).join('') || '<small>No frameworks detected</small>';
+        $('routeCount').textContent = `${data.routes.length} detected`;
+        $('routes').innerHTML = data.routes.map(route => `<div class="route"><span class="method">${esc(route.method)}</span><div><code>${esc(route.path)}</code><br><small>${esc(route.summary)} · ${esc(route.sourceFile)}:${route.sourceLine}${route.integrations.length ? ' · ' + route.integrations.join(', ') : ''}</small></div><span class="pill">${route.responses.map(r => r.status).join(', ') || 'no response'}</span></div>`).join('') || '<small>No Express routes found.</small>';
+        $('calls').innerHTML = data.frontendCalls.map(call => `<div class="route"><span class="method">${esc(call.method)}</span><div><code>${esc(call.path)}</code><br><small>${esc(call.sourceFile)}:${call.sourceLine}</small></div></div>`).join('') || '<small>No frontend fetch calls found.</small>';
+        $('env').textContent = data.environmentVariables.length ? data.environmentVariables.join('\n') : 'No process.env references found.';
+        $('warnings').innerHTML = data.warnings.length ? data.warnings.map(item => `<div class="warning">${esc(item)}</div>`).join('') : '<small>No warnings.</small>';
+      }
+      $('analyze').onclick = async () => { $('status').textContent = 'Scanning source files…'; $('analyze').disabled = true; try { const response = await fetch('/api/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({projectPath:$('projectPath').value.trim()})}); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Analysis failed'); render(data); $('status').textContent = `Analyzed ${data.project.name} at ${new Date(data.project.analyzedAt).toLocaleTimeString()}.`; } catch(error) { $('status').textContent = error.message; } finally { $('analyze').disabled = false; } };
+      $('download').onclick = () => { if (!latest) return; const blob = new Blob([JSON.stringify(latest,null,2)], {type:'application/json'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${latest.project.name}-docforge-analysis.json`; link.click(); URL.revokeObjectURL(link.href); };
+      async function downloadGenerated(kind) { if (!latest) return; const response = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({projectPath:latest.project.path})}); const data = await response.json(); if (!response.ok) { $('status').textContent = data.error || 'Generation failed'; return; } const content = kind === 'openapi' ? JSON.stringify(data.openapi, null, 2) : data.markdown; const blob = new Blob([content], {type:kind === 'openapi' ? 'application/json' : 'text/markdown'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${latest.project.name}-${kind}.${kind === 'openapi' ? 'json' : 'md'}`; link.click(); URL.revokeObjectURL(link.href); }
+      $('downloadOpenapi').onclick = () => downloadGenerated('openapi');
+      $('downloadMarkdown').onclick = () => downloadGenerated('markdown');
+    </script>
+  </body>
+</html>
