@@ -6,7 +6,7 @@ const { analyzeProject } = require('./src/analyzer');
 const { openApiDocument, markdownDocument } = require('./src/generators');
 const { enrichEndpoints } = require('./src/ai/enrichment');
 const { cloneGithubRepository } = require('./src/github');
-const { createSession, getSession, updateSession, listSessions, deleteSession, validId } = require('./src/sessions/sessionStore');
+const { createSession, getSession, updateSession, listSessions, deleteSession, cleanupExpiredSessions, validId } = require('./src/sessions/sessionStore');
 
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
@@ -68,7 +68,7 @@ const server = http.createServer(async (req, res) => {
       analysis.enrichments = session.enrichments;
       return sendJson(res, 200, analysis);
     }
-    if (req.method === 'GET' && req.url === '/api/sessions') return sendJson(res, 200, await listSessions());
+    if (req.method === 'GET' && req.url === '/api/sessions') { await cleanupExpiredSessions(); return sendJson(res, 200, await listSessions()); }
     if (req.method === 'GET' && req.url.startsWith('/api/sessions/')) {
       const sessionId = decodeURIComponent(req.url.slice('/api/sessions/'.length).split('?')[0]);
       if (!validId.test(sessionId)) return sendJson(res, 400, { error: 'Invalid session ID.' });
@@ -120,4 +120,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => console.log(`DocForge running at http://127.0.0.1:${port}`));
+cleanupExpiredSessions().then(removed => {
+  if (removed) console.log(`Removed ${removed} expired DocForge session${removed === 1 ? '' : 's'}.`);
+  server.listen(port, () => console.log(`DocForge running at http://127.0.0.1:${port}`));
+}).catch(error => {
+  console.error('Session cleanup failed:', error.message);
+  server.listen(port, () => console.log(`DocForge running at http://127.0.0.1:${port}`));
+});

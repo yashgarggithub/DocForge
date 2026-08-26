@@ -36,6 +36,7 @@ The scanner is read-only and excludes `.env` files, `node_modules`, build output
 - Generates source-grounded local enrichment suggestions with confidence and warnings.
 - Accepts local project paths or public GitHub repository URLs.
 - Persists analysis sessions and enrichment review state in local JSON files under `data/sessions/`.
+- Automatically expires sessions and cleans up stale temporary GitHub clones.
 
 ## GitHub repositories
 
