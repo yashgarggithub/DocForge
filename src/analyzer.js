@@ -130,6 +130,38 @@ function parseReadme(content) {
   return { title, overview: overview.slice(0, 2400), sections: Object.fromEntries(Object.entries(sections).filter(([name]) => !/^api endpoints|ui components|development$/i.test(name))) };
 }
 
+function deriveProductModel({ projectName, readme, stack, routes, frontendCalls, dependencies, environmentVariables }) {
+  const text = `${readme?.overview || ''} ${dependencies.map(item => item.name).join(' ')}`.toLowerCase();
+  const useCases = [];
+  if (routes.some(route => /translate|locali[sz]|language/i.test(`${route.path} ${route.description}`)) || /translate/.test(text)) useCases.push('Translate text between supported languages.');
+  if (routes.some(route => /generate|completion|chat|prompt/i.test(`${route.path} ${route.description}`)) || /bedrock|ollama|openai|anthropic/.test(text)) useCases.push('Generate or transform text using an AI provider.');
+  if (routes.length) useCases.push('Expose a backend API that coordinates product operations.');
+  if (frontendCalls.length) useCases.push('Use an interactive browser interface to submit requests and review results.');
+  if (!useCases.length) useCases.push(`Explore and integrate the ${projectName} application through its documented source and interfaces.`);
+  const frontend = stack.filter(item => /React|Vite|Next|Vue|Angular/i.test(item));
+  const backend = stack.filter(item => /Express|Fastify|Nest|Koa|Node/i.test(item));
+  const routeIntegrations = [...new Set(routes.flatMap(route => route.integrations || []))];
+  const external = [...new Set([...stack.filter(item => !frontend.includes(item) && !backend.includes(item)), ...routeIntegrations])];
+  return {
+    tagline: readme?.overview?.split(/[.!?]\s/)[0] || `Source-aware documentation for ${projectName}.`,
+    overview: readme?.overview || `${projectName} is a ${stack.join(', ') || 'software'} project with ${routes.length} detected API operation${routes.length === 1 ? '' : 's'}.`,
+    audience: frontend.length || routes.length ? 'Developers integrating with or extending this application.' : 'Maintainers of this application.',
+    useCases,
+    workflow: [
+      frontendCalls.length ? 'A user interacts with the application interface.' : 'A client sends a request to the application.',
+      routes.length ? 'The backend validates the request and executes the matching route.' : 'The application processes the request using its detected components.',
+      external.length ? `The application coordinates with ${external.join(', ')} or other detected integrations.` : 'The application prepares a response from local application logic.',
+      'The result is returned to the caller for display or further integration.'
+    ],
+    architecture: { layers: [
+      { name: 'Frontend', technologies: frontend, responsibilities: frontend.length ? ['Collect input and present results.'] : [] },
+      { name: 'Backend', technologies: backend, responsibilities: backend.length ? ['Expose routes and coordinate application logic.'] : [] },
+      { name: 'Integrations', technologies: external, responsibilities: external.length ? ['Provide external services or runtime capabilities.'] : [] }
+    ].filter(layer => layer.technologies.length || layer.name === 'Backend') },
+    configuration: environmentVariables.map(name => ({ name, required: true, description: 'Referenced by the application; value intentionally omitted.' }))
+  };
+}
+
 async function analyzeProject(projectPath) {
   const stat = await fs.stat(projectPath);
   if (!stat.isDirectory()) throw new Error('projectPath must point to a directory.');
@@ -176,6 +208,7 @@ async function analyzeProject(projectPath) {
   if (files.some(file => path.basename(file) === '.env' || path.basename(file).startsWith('.env.'))) warnings.push('Environment files were detected and excluded from analysis output.');
   if (!detected.has('Express.js')) warnings.push('Express.js was not detected; route extraction may be incomplete.');
 
+  const product = deriveProductModel({ projectName: path.basename(projectPath), readme, stack: [...detected], routes, frontendCalls, dependencies, environmentVariables: [...envNames].sort() });
   return {
     project: { name: path.basename(projectPath), path: projectPath, analyzedAt: new Date().toISOString() },
     stack: [...detected],
@@ -185,6 +218,8 @@ async function analyzeProject(projectPath) {
     dependencies: dependencies.filter((item, index, all) => all.findIndex(other => other.name === item.name) === index),
     environmentVariables: [...envNames].sort(),
     readme,
+    product,
+    architecture: product.architecture,
     warnings,
     summary: { files: files.length, routes: routes.length, frontendCalls: frontendCalls.length, dependencies: dependencies.length, warnings: warnings.length },
   };
