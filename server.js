@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const { analyzeProject } = require('./src/analyzer');
 const { openApiDocument, markdownDocument } = require('./src/generators');
 const { enrichEndpoints } = require('./src/ai/enrichment');
+const { cloneGithubRepository } = require('./src/github');
 
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
@@ -49,11 +50,16 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/api/health') return sendJson(res, 200, { status: 'ok', service: 'docforge' });
     if (req.method === 'POST' && req.url === '/api/analyze') {
       const input = await readJson(req);
-      const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
+      const source = input.githubUrl ? await cloneGithubRepository(input.githubUrl) : { projectPath: input.projectPath || process.env.DOCFORGE_PROJECT_PATH, repositoryUrl: null, temporary: false };
+      const projectPath = source.projectPath;
       if (!projectPath || !path.isAbsolute(projectPath)) {
         return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       }
-      return sendJson(res, 200, await analyzeProject(projectPath));
+      const analysis = await analyzeProject(projectPath);
+      analysis.project.sourceType = source.repositoryUrl ? 'github' : 'local';
+      analysis.project.repositoryUrl = source.repositoryUrl;
+      analysis.project.temporary = source.temporary;
+      return sendJson(res, 200, analysis);
     }
     if (req.method === 'POST' && req.url === '/api/generate') {
       const input = await readJson(req);

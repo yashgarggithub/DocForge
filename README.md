@@ -34,6 +34,17 @@ The scanner is read-only and excludes `.env` files, `node_modules`, build output
 - Provides warnings for unmatched frontend calls and incomplete contracts.
 - Generates deterministic OpenAPI 3.0 JSON and Markdown from the extracted analysis.
 - Generates source-grounded local enrichment suggestions with confidence and warnings.
+- Accepts local project paths or public GitHub repository URLs.
+
+## GitHub repositories
+
+Paste a public repository URL into the project field, for example:
+
+```text
+https://github.com/owner/repository
+```
+
+DocForge validates that the URL is hosted on GitHub, performs a shallow clone into a temporary directory, and runs the same read-only scanner used for local projects. The clone is not executed. Private repositories require GitHub credentials configured for the local `git` command.
 
 ## Enrichment mode
 
