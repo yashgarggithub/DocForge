@@ -6,9 +6,22 @@ function fallback(endpoint) {
     confidence: 0.7,
   }));
   const response = Object.fromEntries((endpoint.responses?.find(item => item.status < 300)?.fields || []).map(field => [field, `example ${field}`]));
+  const description = endpoint.path === '/api/translate'
+    ? 'Translates input text from a source language into a requested target language using the Google Translate integration.'
+    : endpoint.path === '/api/bedrock/generate-translate'
+      ? 'Generates a response through AWS Bedrock in a target language, then translates the generated result back to English for comparison.'
+      : endpoint.path === '/api/bedrock/generate'
+        ? 'Generates text through AWS Bedrock using the requested language and model configuration.'
+        : endpoint.path === '/api/bedrock/models'
+          ? 'Lists on-demand foundation models available in the configured AWS region.'
+          : endpoint.path === '/health'
+            ? 'Reports whether the backend service is running.'
+            : endpoint.path === '/api/example'
+              ? 'Returns a small response used to verify that the API is reachable.'
+              : endpoint.description;
   return {
-    summary: endpoint.method + ' ' + endpoint.path,
-    description: endpoint.description,
+    summary: description.split('.')[0],
+    description,
     requestFields,
     responseDescription: 'Returns a JSON response described by the implementation.',
     examples: { request: Object.fromEntries(requestFields.map(field => [field.name, field.example])), response },
@@ -30,7 +43,7 @@ function validate(result, endpoint) {
 }
 
 function promptFor(endpoint) {
-  return `You enrich API documentation. Use only the supplied source-grounded facts. Never invent undocumented fields or behavior. Return JSON only. Mark uncertainty in warnings.\n\nFACTS:\n${JSON.stringify(endpoint, null, 2)}\n\nReturn this shape: {"summary":string,"description":string,"requestFields":[{"name":string,"description":string,"example":string,"confidence":number}],"responseDescription":string,"examples":{"request":object,"response":object},"warnings":string[],"assumptions":string[],"confidence":number}`;
+  return `You are documenting one backend API endpoint for a developer portal. Use the route facts and source evidence below. Write endpoint-specific documentation, not generic text. Explain what the endpoint actually does, name the detected integration, and describe validation and errors only when evidence supports them. Never invent undocumented fields, authentication, or behavior. If evidence is insufficient, add a warning and an assumption. Return JSON only, with no Markdown fences.\n\nROUTE FACTS:\n${JSON.stringify(endpoint, null, 2)}\n\nREQUIRED JSON SHAPE:\n{"summary":"specific one-line summary","description":"2-4 sentence developer-facing description","requestFields":[{"name":"exact field name","description":"specific purpose","example":"realistic example","confidence":0.0}],"responseDescription":"specific response explanation","examples":{"request":{},"response":{}},"warnings":[],"assumptions":[],"confidence":0.0}`;
 }
 
 function parseJson(text) {
@@ -47,7 +60,7 @@ async function ollamaEnrich(endpoint) {
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, stream: false, format: 'json', messages: [{ role: 'user', content: promptFor(endpoint) }] }),
+    body: JSON.stringify({ model, stream: false, format: 'json', messages: [{ role: 'system', content: 'You produce accurate, concise API documentation grounded in source evidence.' }, { role: 'user', content: promptFor(endpoint) }] }),
     signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)),
   });
   if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}. Is the model installed?`);

@@ -58,6 +58,15 @@ function inferResponses(handler) {
   return responses.sort((a, b) => a.status - b.status);
 }
 
+function extractEvidence(handler) {
+  const useful = handler.split('\n').map(line => line.trim()).filter(line => line && (
+    /req\.(body|query|params)/.test(line) ||
+    /res\.(status|json)/.test(line) ||
+    /\.trim\(\)|typeof\s+\w+|!\w+|default|translate\(|bedrockGenerateText|ListFoundationModels/.test(line)
+  ));
+  return useful.join(' ').replace(/\s+/g, ' ').slice(0, 1800);
+}
+
 function parseExpressRoutes(source, relativePath) {
   const routes = [];
   const regex = /\bapp\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]\s*,/g;
@@ -75,6 +84,7 @@ function parseExpressRoutes(source, relativePath) {
       requestFields: inferFields(handler),
       responses: inferResponses(handler),
       integrations: [],
+      sourceEvidence: extractEvidence(handler),
       summary: `${method} ${match[2]}`,
       description: 'Description inferred from the route implementation.',
       warnings: [],
