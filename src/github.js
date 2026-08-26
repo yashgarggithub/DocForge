@@ -5,6 +5,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
+const sessions = new Map();
 
 function normalizeGithubUrl(input) {
   let url;
@@ -20,7 +21,10 @@ async function cloneGithubRepository(repositoryUrl) {
   const checkoutPath = await fs.mkdtemp(path.join(os.tmpdir(), 'docforge-github-'));
   try {
     await execFileAsync('git', ['clone', '--depth', '1', normalizedUrl, checkoutPath], { timeout: 120000, maxBuffer: 2 * 1024 * 1024 });
-    return { projectPath: checkoutPath, repositoryUrl: normalizedUrl.replace(/\.git$/, ''), temporary: true };
+    const { stdout } = await execFileAsync('git', ['-C', checkoutPath, 'rev-parse', '--short', 'HEAD']);
+    const sessionId = path.basename(checkoutPath);
+    sessions.set(sessionId, { projectPath: checkoutPath, createdAt: new Date().toISOString(), repositoryUrl: normalizedUrl.replace(/\.git$/, '') });
+    return { projectPath: checkoutPath, repositoryUrl: normalizedUrl.replace(/\.git$/, ''), temporary: true, sessionId, commit: stdout.trim() };
   } catch (error) {
     await fs.rm(checkoutPath, { recursive: true, force: true });
     const details = String(error.stderr || error.message || '').trim();
@@ -28,4 +32,12 @@ async function cloneGithubRepository(repositoryUrl) {
   }
 }
 
-module.exports = { cloneGithubRepository, normalizeGithubUrl };
+async function removeGithubSession(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session) return false;
+  await fs.rm(session.projectPath, { recursive: true, force: true });
+  sessions.delete(sessionId);
+  return true;
+}
+
+module.exports = { cloneGithubRepository, normalizeGithubUrl, removeGithubSession };

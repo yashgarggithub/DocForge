@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const { analyzeProject } = require('./src/analyzer');
 const { openApiDocument, markdownDocument } = require('./src/generators');
 const { enrichEndpoints } = require('./src/ai/enrichment');
-const { cloneGithubRepository } = require('./src/github');
+const { cloneGithubRepository, removeGithubSession } = require('./src/github');
 
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
@@ -59,7 +59,15 @@ const server = http.createServer(async (req, res) => {
       analysis.project.sourceType = source.repositoryUrl ? 'github' : 'local';
       analysis.project.repositoryUrl = source.repositoryUrl;
       analysis.project.temporary = source.temporary;
+      analysis.project.sessionId = source.sessionId || null;
+      analysis.project.commit = source.commit || null;
       return sendJson(res, 200, analysis);
+    }
+    if (req.method === 'DELETE' && req.url.startsWith('/api/sessions/')) {
+      const sessionId = decodeURIComponent(req.url.slice('/api/sessions/'.length).split('?')[0]);
+      if (!/^[a-zA-Z0-9-]+$/.test(sessionId)) return sendJson(res, 400, { error: 'Invalid session ID.' });
+      const removed = await removeGithubSession(sessionId);
+      return sendJson(res, removed ? 200 : 404, removed ? { status: 'deleted', sessionId } : { error: 'Session not found or already deleted.' });
     }
     if (req.method === 'POST' && req.url === '/api/generate') {
       const input = await readJson(req);
