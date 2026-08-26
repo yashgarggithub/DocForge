@@ -7,6 +7,7 @@ const { openApiDocument, markdownDocument } = require('./src/generators');
 const { enrichEndpoints } = require('./src/ai/enrichment');
 const { cloneGithubRepository } = require('./src/github');
 const { createSession, getSession, updateSession, listSessions, deleteSession, cleanupExpiredSessions, validId } = require('./src/sessions/sessionStore');
+const { createDocumentationBundle } = require('./src/bundle');
 
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
@@ -102,6 +103,16 @@ const server = http.createServer(async (req, res) => {
       const analysis = await analyzeProject(projectPath);
       if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
       return sendJson(res, 200, { analysis, openapi: openApiDocument(analysis), markdown: markdownDocument(analysis) });
+    }
+    if (req.method === 'POST' && req.url === '/api/bundle') {
+      const input = await readJson(req);
+      const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
+      if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute path.' });
+      const analysis = await analyzeProject(projectPath);
+      if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
+      const bundle = await createDocumentationBundle(analysis);
+      res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${bundle.filename}"`, 'Content-Length': bundle.content.length, 'Access-Control-Allow-Origin': '*' });
+      return res.end(bundle.content);
     }
     if (req.method === 'POST' && (req.url === '/api/enrich' || req.url === '/api/enrich/all')) {
       const input = await readJson(req);
