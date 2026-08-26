@@ -29,7 +29,8 @@ async function readJson(req) {
 }
 
 async function serveStatic(req, res) {
-  const requested = req.url === '/' ? '/index.html' : req.url.split('?')[0];
+  const pathname = req.url.split('?')[0];
+  const requested = pathname === '/' || pathname === '' ? '/index.html' : pathname;
   const filePath = path.resolve(publicDir, `.${requested}`);
   if (!filePath.startsWith(publicDir)) return sendJson(res, 403, { error: 'Forbidden' });
   try {
