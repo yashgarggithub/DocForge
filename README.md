@@ -21,6 +21,16 @@ Or run the first analysis directly:
 npm run analyze:tokenwise
 ```
 
+## Run with Docker
+
+Build and start DocForge with:
+
+```bash
+docker compose up --build
+```
+
+Open `http://127.0.0.1:5050`. The Compose setup defaults to deterministic local enrichment. To connect to Ollama running on the host, create a `.env` file with `DOCFORGE_AI_PROVIDER=ollama`; the configured `host.docker.internal` URL is used by the container.
+
 The scanner is read-only and excludes `.env` files, `node_modules`, build output, and Git metadata. No API key is needed for this first deterministic slice.
 
 ## Current capabilities

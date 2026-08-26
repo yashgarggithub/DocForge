@@ -1,0 +1,16 @@
+services:
+  docforge:
+    build: .
+    ports:
+      - "5050:5050"
+    environment:
+      PORT: 5050
+      DOCFORGE_AI_PROVIDER: ${DOCFORGE_AI_PROVIDER:-local}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      DOCFORGE_SESSION_TTL_HOURS: ${DOCFORGE_SESSION_TTL_HOURS:-24}
+    volumes:
+      - docforge-sessions:/app/data/sessions
+
+volumes:
+  docforge-sessions:
