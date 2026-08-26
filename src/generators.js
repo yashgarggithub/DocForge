@@ -9,12 +9,13 @@ function schemaForFields(fields) {
 }
 
 function openApiDocument(analysis) {
+  const enrichmentById = new Map((analysis.enrichments || []).map(item => [item.endpointId, item.enrichment]));
   const paths = {};
   for (const route of analysis.routes) {
     const operation = {
       operationId: route.id,
-      summary: route.summary,
-      description: route.description,
+      summary: enrichmentById.get(route.id)?.summary || route.summary,
+      description: enrichmentById.get(route.id)?.description || route.description,
       tags: [route.path.split('/').filter(Boolean)[1] || 'default'],
       responses: {},
       'x-docforge': { sourceFile: route.sourceFile, sourceLine: route.sourceLine, confidence: route.confidence, integrations: route.integrations },

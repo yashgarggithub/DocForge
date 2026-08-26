@@ -3,6 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const { analyzeProject } = require('./src/analyzer');
 const { openApiDocument, markdownDocument } = require('./src/generators');
+const { enrichEndpoints } = require('./src/ai/enrichment');
 
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
@@ -59,7 +60,16 @@ const server = http.createServer(async (req, res) => {
       const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       const analysis = await analyzeProject(projectPath);
+      if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
       return sendJson(res, 200, { analysis, openapi: openApiDocument(analysis), markdown: markdownDocument(analysis) });
+    }
+    if (req.method === 'POST' && (req.url === '/api/enrich' || req.url === '/api/enrich/all')) {
+      const input = await readJson(req);
+      const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
+      if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
+      const analysis = await analyzeProject(projectPath);
+      const selected = req.url === '/api/enrich' && Array.isArray(input.endpointIds) ? analysis.routes.filter(route => input.endpointIds.includes(route.id)) : analysis.routes;
+      return sendJson(res, 200, { enrichments: await enrichEndpoints(selected), mode: 'deterministic-local' });
     }
     return serveStatic(req, res);
   } catch (error) {

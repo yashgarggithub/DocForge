@@ -33,5 +33,12 @@ The scanner is read-only and excludes `.env` files, `node_modules`, build output
 - Lists environment variable names without exposing values.
 - Provides warnings for unmatched frontend calls and incomplete contracts.
 - Generates deterministic OpenAPI 3.0 JSON and Markdown from the extracted analysis.
+- Generates source-grounded local enrichment suggestions with confidence and warnings.
+
+## Enrichment mode
+
+The current enrichment feature is intentionally local and deterministic. It validates the same shape that a future model provider will return, but does not send TokenWise source metadata to an external AI service. This keeps the first review workflow safe while the provider boundary is evaluated.
+
+Click **Generate local suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.
 
 The next layer will generate validated OpenAPI and Markdown documentation, followed by optional structured AI enrichment.
