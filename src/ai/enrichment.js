@@ -36,10 +36,25 @@ function validate(result, endpoint) {
   if (!result || typeof result.summary !== 'string' || typeof result.description !== 'string' || !Array.isArray(result.requestFields) || !result.examples) throw new Error('Enrichment did not match the required schema.');
   const allowed = new Set((endpoint.requestFields || []).map(field => field.name));
   result.requestFields = result.requestFields.filter(field => allowed.has(field.name)).map(field => ({ name: field.name, description: String(field.description || ''), example: field.example, confidence: Math.max(0, Math.min(1, Number(field.confidence || 0))) }));
-  result.warnings = Array.isArray(result.warnings) ? result.warnings.map(String) : [];
-  result.assumptions = Array.isArray(result.assumptions) ? result.assumptions.map(String) : [];
-  result.confidence = Math.max(0, Math.min(1, Number(result.confidence || 0)));
+  const readable = value => typeof value === 'string' ? value : JSON.stringify(value);
+  result.warnings = Array.isArray(result.warnings) ? result.warnings.map(readable) : [];
+  result.assumptions = Array.isArray(result.assumptions) ? result.assumptions.map(readable) : [];
+  result.modelConfidence = Math.max(0, Math.min(1, Number(result.confidence || 0)));
+  result.confidence = evidenceConfidence(endpoint, result);
   return result;
+}
+
+function evidenceConfidence(endpoint, enrichment) {
+  let score = 0.2;
+  const evidence = endpoint.sourceEvidence || '';
+  if (evidence) score += 0.15;
+  if ((endpoint.requestFields || []).length === 0 || enrichment.requestFields.length >= endpoint.requestFields.length) score += 0.2;
+  if ((endpoint.responses || []).length > 0) score += 0.15;
+  if ((endpoint.integrations || []).length > 0) score += 0.1;
+  if (/if\s*\(|typeof\s|\.trim\(\)|status\((4|5)/.test(evidence)) score += 0.1;
+  score -= (enrichment.assumptions || []).length * 0.05;
+  score -= (enrichment.warnings || []).filter(warning => /assumption|unavailable|insufficient|invent/i.test(warning)).length * 0.05;
+  return Math.max(0, Math.min(1, Number(score.toFixed(2))));
 }
 
 function promptFor(endpoint) {
