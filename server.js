@@ -1,10 +1,12 @@
 const http = require('node:http');
 const path = require('node:path');
+const os = require('node:os');
 const fs = require('node:fs/promises');
 const { analyzeProject } = require('./src/analyzer');
 const { openApiDocument, markdownDocument } = require('./src/generators');
 const { enrichEndpoints } = require('./src/ai/enrichment');
-const { cloneGithubRepository, removeGithubSession } = require('./src/github');
+const { cloneGithubRepository } = require('./src/github');
+const { createSession, getSession, updateSession, listSessions, deleteSession, validId } = require('./src/sessions/sessionStore');
 
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
@@ -59,15 +61,38 @@ const server = http.createServer(async (req, res) => {
       analysis.project.sourceType = source.repositoryUrl ? 'github' : 'local';
       analysis.project.repositoryUrl = source.repositoryUrl;
       analysis.project.temporary = source.temporary;
-      analysis.project.sessionId = source.sessionId || null;
+      const session = await createSession({ analysis, source: { type: source.repositoryUrl ? 'github' : 'local', repositoryUrl: source.repositoryUrl, commit: source.commit || null, projectPath } });
+      analysis.project.sessionId = session.id;
       analysis.project.commit = source.commit || null;
+      analysis.enrichments = session.enrichments;
       return sendJson(res, 200, analysis);
+    }
+    if (req.method === 'GET' && req.url === '/api/sessions') return sendJson(res, 200, await listSessions());
+    if (req.method === 'GET' && req.url.startsWith('/api/sessions/')) {
+      const sessionId = decodeURIComponent(req.url.slice('/api/sessions/'.length).split('?')[0]);
+      if (!validId.test(sessionId)) return sendJson(res, 400, { error: 'Invalid session ID.' });
+      const session = await getSession(sessionId);
+      const analysis = session.analysis;
+      analysis.enrichments = session.enrichments || [];
+      analysis.project.sessionId = session.id;
+      return sendJson(res, 200, analysis);
+    }
+    if (req.method === 'PATCH' && req.url.startsWith('/api/sessions/')) {
+      const sessionId = decodeURIComponent(req.url.slice('/api/sessions/'.length).split('?')[0]);
+      if (!validId.test(sessionId)) return sendJson(res, 400, { error: 'Invalid session ID.' });
+      const input = await readJson(req);
+      const session = await updateSession(sessionId, input);
+      return sendJson(res, 200, { id: session.id, updatedAt: session.updatedAt });
     }
     if (req.method === 'DELETE' && req.url.startsWith('/api/sessions/')) {
       const sessionId = decodeURIComponent(req.url.slice('/api/sessions/'.length).split('?')[0]);
-      if (!/^[a-zA-Z0-9-]+$/.test(sessionId)) return sendJson(res, 400, { error: 'Invalid session ID.' });
-      const removed = await removeGithubSession(sessionId);
-      return sendJson(res, removed ? 200 : 404, removed ? { status: 'deleted', sessionId } : { error: 'Session not found or already deleted.' });
+      if (!validId.test(sessionId)) return sendJson(res, 400, { error: 'Invalid session ID.' });
+      let session;
+      try { session = await getSession(sessionId); } catch { return sendJson(res, 404, { error: 'Session not found or already deleted.' }); }
+      const clonePath = session.source?.projectPath;
+      if (session.source?.type === 'github' && clonePath && path.dirname(clonePath) === os.tmpdir() && path.basename(clonePath).startsWith('docforge-github-')) await fs.rm(clonePath, { recursive: true, force: true });
+      await deleteSession(sessionId);
+      return sendJson(res, 200, { status: 'deleted', sessionId });
     }
     if (req.method === 'POST' && req.url === '/api/generate') {
       const input = await readJson(req);
@@ -83,7 +108,9 @@ const server = http.createServer(async (req, res) => {
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       const analysis = await analyzeProject(projectPath);
       const selected = req.url === '/api/enrich' && Array.isArray(input.endpointIds) ? analysis.routes.filter(route => input.endpointIds.includes(route.id)) : analysis.routes;
-      return sendJson(res, 200, { enrichments: await enrichEndpoints(selected), mode: process.env.DOCFORGE_AI_PROVIDER || 'ollama' });
+      const enrichments = await enrichEndpoints(selected);
+      if (input.sessionId && validId.test(input.sessionId)) await updateSession(input.sessionId, { enrichments });
+      return sendJson(res, 200, { enrichments, mode: process.env.DOCFORGE_AI_PROVIDER || 'ollama' });
     }
     return serveStatic(req, res);
   } catch (error) {

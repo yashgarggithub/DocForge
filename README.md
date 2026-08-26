@@ -35,6 +35,7 @@ The scanner is read-only and excludes `.env` files, `node_modules`, build output
 - Generates deterministic OpenAPI 3.0 JSON and Markdown from the extracted analysis.
 - Generates source-grounded local enrichment suggestions with confidence and warnings.
 - Accepts local project paths or public GitHub repository URLs.
+- Persists analysis sessions and enrichment review state in local JSON files under `data/sessions/`.
 
 ## GitHub repositories
 
@@ -45,6 +46,8 @@ https://github.com/owner/repository
 ```
 
 DocForge validates that the URL is hosted on GitHub, performs a shallow clone into a temporary directory, and runs the same read-only scanner used for local projects. The clone is not executed. Private repositories require GitHub credentials configured for the local `git` command.
+
+Session URLs include a stable identifier (`?session=sess_...`) so analysis and approval decisions can be restored after a browser refresh or server restart. Session files are local-only and ignored by Git.
 
 ## Enrichment mode
 
