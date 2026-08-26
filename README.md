@@ -37,7 +37,19 @@ The scanner is read-only and excludes `.env` files, `node_modules`, build output
 
 ## Enrichment mode
 
-The current enrichment feature is intentionally local and deterministic. It validates the same shape that a future model provider will return, but does not send TokenWise source metadata to an external AI service. This keeps the first review workflow safe while the provider boundary is evaluated.
+Enrichment uses Ollama locally by default. TokenWise source metadata is sent only to the local Ollama process. If Ollama is unavailable, DocForge automatically falls back to deterministic local suggestions.
+
+Install Ollama separately, then download a local instruction-following model:
+
+```bash
+ollama pull llama3.2
+```
+
+Start Ollama, then run DocForge. To force fallback mode:
+
+```bash
+DOCFORGE_AI_PROVIDER=local npm start
+```
 
 Click **Generate local suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.
 

@@ -29,8 +29,49 @@ function validate(result, endpoint) {
   return result;
 }
 
+function promptFor(endpoint) {
+  return `You enrich API documentation. Use only the supplied source-grounded facts. Never invent undocumented fields or behavior. Return JSON only. Mark uncertainty in warnings.\n\nFACTS:\n${JSON.stringify(endpoint, null, 2)}\n\nReturn this shape: {"summary":string,"description":string,"requestFields":[{"name":string,"description":string,"example":string,"confidence":number}],"responseDescription":string,"examples":{"request":object,"response":object},"warnings":string[],"assumptions":string[],"confidence":number}`;
+}
+
+function parseJson(text) {
+  const cleaned = String(text || '').replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('Ollama returned no JSON object.');
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+async function ollamaEnrich(endpoint) {
+  const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+  const model = process.env.OLLAMA_MODEL || 'llama3.2';
+  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, stream: false, format: 'json', messages: [{ role: 'user', content: promptFor(endpoint) }] }),
+    signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)),
+  });
+  if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}. Is the model installed?`);
+  const payload = await response.json();
+  return { ...validate(parseJson(payload.message?.content), endpoint), provider: 'ollama', model };
+}
+
 async function enrichEndpoints(endpoints) {
-  return endpoints.map(endpoint => ({ endpointId: endpoint.id, enrichment: validate(fallback(endpoint), endpoint) }));
+  const provider = process.env.DOCFORGE_AI_PROVIDER || 'ollama';
+  const results = [];
+  for (const endpoint of endpoints) {
+    if (provider !== 'ollama') {
+      results.push({ endpointId: endpoint.id, enrichment: validate(fallback(endpoint), endpoint) });
+      continue;
+    }
+    try {
+      results.push({ endpointId: endpoint.id, enrichment: await ollamaEnrich(endpoint) });
+    } catch (error) {
+      const local = validate(fallback(endpoint), endpoint);
+      local.warnings.unshift(`Ollama unavailable: ${error.message}`);
+      results.push({ endpointId: endpoint.id, enrichment: local });
+    }
+  }
+  return results;
 }
 
 module.exports = { enrichEndpoints };
