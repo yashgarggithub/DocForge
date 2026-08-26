@@ -115,6 +115,21 @@ function dependenciesFromPackage(pkg, relativePath) {
   return Object.entries({ ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) }).map(([name, version]) => ({ name, version, sourceFile: relativePath }));
 }
 
+function parseReadme(content) {
+  const title = (content.match(/^#\s+(.+)$/m) || [])[1] || null;
+  const sections = {};
+  const headings = [...content.matchAll(/^##\s+(.+)$/gm)];
+  for (let index = 0; index < headings.length; index += 1) {
+    const start = headings[index].index + headings[index][0].length;
+    const end = headings[index + 1]?.index ?? content.length;
+    sections[headings[index][1].trim()] = content.slice(start, end).trim().slice(0, 8000);
+  }
+  const overviewSection = Object.entries(sections).find(([name]) => /overview|what it does|why/i.test(name));
+  const workflowSection = Object.entries(sections).find(([name]) => /how it works|workflow/i.test(name));
+  const overview = overviewSection?.[1] || workflowSection?.[1] || content.split(/\n\s*\n/).slice(1, 3).join('\n\n');
+  return { title, overview: overview.slice(0, 2400), sections: Object.fromEntries(Object.entries(sections).filter(([name]) => !/^api endpoints|ui components|development$/i.test(name))) };
+}
+
 async function analyzeProject(projectPath) {
   const stat = await fs.stat(projectPath);
   if (!stat.isDirectory()) throw new Error('projectPath must point to a directory.');
@@ -125,7 +140,10 @@ async function analyzeProject(projectPath) {
   const envNames = new Set();
   const detected = new Set();
   const warnings = [];
+  let readme = null;
   const packageFiles = files.filter(file => path.basename(file) === 'package.json');
+  const readmeFile = files.find(file => /^readme\.md$/i.test(path.basename(file)));
+  if (readmeFile) readme = parseReadme(await fs.readFile(readmeFile, 'utf8'));
 
   for (const file of packageFiles) {
     try {
@@ -166,6 +184,7 @@ async function analyzeProject(projectPath) {
     frontendCalls,
     dependencies: dependencies.filter((item, index, all) => all.findIndex(other => other.name === item.name) === index),
     environmentVariables: [...envNames].sort(),
+    readme,
     warnings,
     summary: { files: files.length, routes: routes.length, frontendCalls: frontendCalls.length, dependencies: dependencies.length, warnings: warnings.length },
   };
