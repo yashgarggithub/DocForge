@@ -2,13 +2,37 @@ const { mergeDocumentation, collectProductEvidence } = require('../documentation
 const { generateProviderText, parseJson } = require('./enrichment');
 
 function cleanText(value, fallback = '') { return typeof value === 'string' ? value.trim().slice(0, 4000) : fallback; }
-function cleanList(value, limit = 12) { return Array.isArray(value) ? value.map(item => cleanText(item)).filter(Boolean).slice(0, limit) : []; }
+function cleanList(value, limit = 12) {
+  const items = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+  return items.map(item => cleanText(item)).filter(Boolean).slice(0, limit);
+}
 function cleanArchitecture(value) { return Array.isArray(value) ? value.slice(0, 12).map(layer => ({ name: cleanText(layer?.name, 'Application layer'), technologies: cleanList(layer?.technologies, 12), responsibilities: cleanList(layer?.responsibilities, 12) })) : []; }
 
+function normalizeDraftInput(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const source = value.documentation || value.productDocumentation || value.product_documentation || value;
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return source;
+  return {
+    ...source,
+    overview: source.overview ?? source.productOverview ?? source.product_overview,
+    audience: source.audience ?? source.targetAudience ?? source.target_audience,
+    useCases: source.useCases ?? source.use_cases ?? source.usecases,
+    workflow: source.workflow ?? source.howItWorks ?? source.how_it_works,
+    architecture: source.architecture ?? source.systemArchitecture ?? source.system_architecture,
+    troubleshooting: source.troubleshooting ?? source.troubleshootingNotes ?? source.troubleshooting_notes,
+  };
+}
+
 function validateDraft(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Product documentation response must be a JSON object.');
-  const draft = { overview: cleanText(value.overview), audience: cleanText(value.audience), useCases: cleanList(value.useCases), workflow: cleanList(value.workflow), architecture: cleanArchitecture(value.architecture), troubleshooting: Array.isArray(value.troubleshooting) ? value.troubleshooting.slice(0, 12).map(item => ({ title: cleanText(item?.title, 'Troubleshooting note'), guidance: cleanText(item?.guidance) })).filter(item => item.guidance) : [], warnings: cleanList(value.warnings), confidence: Math.max(0, Math.min(1, Number(value.confidence || 0))) };
-  if (!draft.overview || !draft.audience || !draft.useCases.length || !draft.workflow.length) throw new Error('Product documentation response is missing required sections.');
+  const source = normalizeDraftInput(value);
+  if (!source || typeof source !== 'object' || Array.isArray(source)) throw new Error('Product documentation response must be a JSON object.');
+  const draft = { overview: cleanText(source.overview), audience: cleanText(source.audience), useCases: cleanList(source.useCases), workflow: cleanList(source.workflow), architecture: cleanArchitecture(source.architecture), troubleshooting: Array.isArray(source.troubleshooting) ? source.troubleshooting.slice(0, 12).map(item => ({ title: cleanText(item?.title, 'Troubleshooting note'), guidance: cleanText(item?.guidance) })).filter(item => item.guidance) : [], warnings: cleanList(source.warnings), confidence: Math.max(0, Math.min(1, Number(source.confidence || 0))) };
+  const missing = [];
+  if (!draft.overview) missing.push('overview');
+  if (!draft.audience) missing.push('audience');
+  if (!draft.useCases.length) missing.push('useCases');
+  if (!draft.workflow.length) missing.push('workflow');
+  if (missing.length) throw new Error(`Product documentation response is missing required sections: ${missing.join(', ')}.`);
   return draft;
 }
 
