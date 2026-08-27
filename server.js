@@ -12,6 +12,15 @@ const { createDocumentationBundle } = require('./src/bundle');
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
 
+async function displayNameForProject(projectPath, fallback) {
+  try {
+    const config = await fs.readFile(path.join(projectPath, '.git', 'config'), 'utf8');
+    const match = config.match(/github\.com[/:][^/]+\/([^\s]+?)(?:\.git)?['\"]?\s*$/m);
+    if (match) return match[1].replace(/\.git$/, '');
+  } catch { /* Local projects may not have Git metadata. */ }
+  return fallback;
+}
+
 function sendJson(res, status, payload) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -60,6 +69,10 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       }
       const analysis = await analyzeProject(projectPath);
+      const localName = path.basename(projectPath);
+      const repositoryName = source.repositoryUrl ? source.repositoryUrl.split('/').filter(Boolean).pop() : localName;
+      analysis.project.localName = source.repositoryUrl ? localName : null;
+      analysis.project.name = repositoryName;
       analysis.project.sourceType = source.repositoryUrl ? 'github' : 'local';
       analysis.project.repositoryUrl = source.repositoryUrl;
       analysis.project.temporary = source.temporary;
@@ -101,6 +114,7 @@ const server = http.createServer(async (req, res) => {
       const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       const analysis = await analyzeProject(projectPath);
+      analysis.project.name = input.projectName ? String(input.projectName) : await displayNameForProject(projectPath, analysis.project.name);
       if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
       return sendJson(res, 200, { analysis, openapi: openApiDocument(analysis), markdown: markdownDocument(analysis), html: htmlDocument(analysis) });
     }
@@ -109,6 +123,7 @@ const server = http.createServer(async (req, res) => {
       const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute path.' });
       const analysis = await analyzeProject(projectPath);
+      analysis.project.name = input.projectName ? String(input.projectName) : await displayNameForProject(projectPath, analysis.project.name);
       if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
       const bundle = await createDocumentationBundle(analysis);
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${bundle.filename}"`, 'Content-Length': bundle.content.length, 'Access-Control-Allow-Origin': '*' });

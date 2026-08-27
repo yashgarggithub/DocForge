@@ -46,7 +46,7 @@ async function updateSession(id, updates) {
 async function listSessions() {
   await ensureStore();
   const files = (await fs.readdir(sessionDir)).filter(file => validId.test(file.replace(/\.json$/, '')));
-  const sessions = await Promise.all(files.map(async file => { try { const session = JSON.parse(await fs.readFile(path.join(sessionDir, file), 'utf8')); return { id: session.id, name: session.analysis?.project?.name, sourceType: session.analysis?.project?.sourceType || 'local', repositoryUrl: session.analysis?.project?.repositoryUrl || null, updatedAt: session.updatedAt, expiresAt: session.expiresAt }; } catch { return null; } }));
+  const sessions = await Promise.all(files.map(async file => { try { const session = JSON.parse(await fs.readFile(path.join(sessionDir, file), 'utf8')); return { id: session.id, name: session.analysis?.project?.name, localName: session.analysis?.project?.localName || null, sourceType: session.analysis?.project?.sourceType || 'local', repositoryUrl: session.analysis?.project?.repositoryUrl || null, updatedAt: session.updatedAt, expiresAt: session.expiresAt }; } catch { return null; } }));
   return sessions.filter(Boolean).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 
