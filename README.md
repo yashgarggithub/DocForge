@@ -8,6 +8,15 @@ DocForge is a local-first documentation workbench. It discovers how a product wo
 Local or GitHub source → Framework adapters → Product and API documentation
 ```
 
+## Before you begin
+
+- **Node.js 18 or newer** is required.
+- **Git** is required when analyzing a public GitHub repository.
+- **Ollama** is optional and only needed for local AI suggestions.
+- A **Gemini API key** is optional and only needed when Gemini is selected.
+
+DocForge reads source files without executing the analyzed project. Secrets and environment variable values are excluded from analysis.
+
 ## Run locally
 
 Requires Node.js 18 or newer.
@@ -15,12 +24,6 @@ Requires Node.js 18 or newer.
 ```bash
 npm start
 open http://127.0.0.1:5050
-```
-
-Or run the first analysis directly:
-
-```bash
-npm run analyze:tokenwise
 ```
 
 ## Run with Docker
@@ -64,7 +67,13 @@ Session URLs include a stable identifier (`?session=sess_...`) so analysis and a
 
 ## Enrichment mode
 
-Enrichment uses Ollama locally by default. TokenWise source metadata is sent only to the local Ollama process. If Ollama is unavailable, DocForge automatically falls back to deterministic local suggestions.
+Enrichment uses Ollama locally by default. Analyzed source metadata is sent only to the local Ollama process. If Ollama is unavailable, DocForge automatically falls back to deterministic suggestions.
+
+### Choose an enrichment provider
+
+- **Local deterministic** — always available; requires no model or API key.
+- **Ollama** — runs a local model; requires Ollama and a downloaded model.
+- **Gemini** — uses Google’s hosted API; requires `GEMINI_API_KEY`.
 
 Install Ollama separately, then download a local instruction-following model:
 
@@ -97,7 +106,7 @@ curl -sS -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini
 
 Gemini sends source-derived route metadata to Google's hosted API and may have quotas or usage charges. Keep the key out of source control. If the key is missing or Gemini fails, DocForge falls back to deterministic local suggestions.
 
-Click **Generate local suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.
+Click **Generate suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.
 
 ## 📖 Beginner's guide
 
@@ -119,7 +128,7 @@ Most repositories contain useful information, but it is spread across route hand
 ### What should a new user click?
 
 - **Analyze project** starts a repository scan.
-- **Generate local suggestions** creates optional endpoint explanations.
+- **Generate suggestions** creates optional endpoint explanations using the selected provider.
 - **Approve** includes a suggestion in API documentation and OpenAPI output.
 - **Edit** changes a suggestion before it is approved.
 - **Reject** excludes a suggestion from generated API exports.
@@ -211,7 +220,6 @@ React and Vite frontend API calls are also detected when present. Multiple frame
 
 DocForge v1 uses deterministic source scanning and regular expressions rather than a full AST parser. Dynamic routes, runtime-generated schemas, and complex middleware behavior may require manual review. Confidence scores are estimates, not guarantees. ⚠️
 
-The existing sections above cover installation, GitHub analysis, local AI enrichment, and the complete beginner workflow.
 
 ## ⚙️ CI configuration
 
