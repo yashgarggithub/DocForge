@@ -8,6 +8,7 @@ const { enrichEndpoints } = require('./src/ai/enrichment');
 const { cloneGithubRepository } = require('./src/github');
 const { createSession, getSession, updateSession, listSessions, deleteSession, cleanupExpiredSessions, validId } = require('./src/sessions/sessionStore');
 const { createDocumentationBundle } = require('./src/bundle');
+const { mergeDocumentation, collectProductEvidence, collectRouteEvidence } = require('./src/documentation');
 
 const port = Number(process.env.PORT || 5050);
 const publicDir = path.join(__dirname, 'public');
@@ -89,6 +90,8 @@ const server = http.createServer(async (req, res) => {
       const session = await getSession(sessionId);
       const analysis = session.analysis;
       analysis.enrichments = session.enrichments || [];
+      Object.assign(analysis, mergeDocumentation(analysis, session.documentationEdits || {}), { documentationEdits: session.documentationEdits || {} });
+      analysis.evidence = { product: collectProductEvidence(analysis), routes: collectRouteEvidence(analysis) };
       if (analysis.project.repositoryUrl) analysis.project.name = analysis.project.repositoryUrl.split('/').filter(Boolean).pop();
       analysis.project.sessionId = session.id;
       return sendJson(res, 200, analysis);
@@ -117,6 +120,8 @@ const server = http.createServer(async (req, res) => {
       const analysis = await analyzeProject(projectPath);
       analysis.project.name = input.projectName ? String(input.projectName) : await displayNameForProject(projectPath, analysis.project.name);
       if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
+      Object.assign(analysis, mergeDocumentation(analysis, input.documentationEdits || {}));
+      analysis.evidence = { product: collectProductEvidence(analysis), routes: collectRouteEvidence(analysis) };
       return sendJson(res, 200, { analysis, openapi: openApiDocument(analysis), markdown: markdownDocument(analysis), html: htmlDocument(analysis) });
     }
     if (req.method === 'POST' && req.url === '/api/bundle') {
@@ -126,6 +131,8 @@ const server = http.createServer(async (req, res) => {
       const analysis = await analyzeProject(projectPath);
       analysis.project.name = input.projectName ? String(input.projectName) : await displayNameForProject(projectPath, analysis.project.name);
       if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
+      Object.assign(analysis, mergeDocumentation(analysis, input.documentationEdits || {}));
+      analysis.evidence = { product: collectProductEvidence(analysis), routes: collectRouteEvidence(analysis) };
       const bundle = await createDocumentationBundle(analysis);
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${bundle.filename}"`, 'Content-Length': bundle.content.length, 'Access-Control-Allow-Origin': '*' });
       return res.end(bundle.content);

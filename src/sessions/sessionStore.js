@@ -9,6 +9,7 @@ const validId = /^sess_[a-f0-9]{24}$/;
 async function ensureStore() { await fs.mkdir(sessionDir, { recursive: true }); }
 function fileFor(id) { if (!validId.test(id)) throw new Error('Invalid session ID.'); return path.join(sessionDir, `${id}.json`); }
 function createId() { return `sess_${crypto.randomBytes(12).toString('hex')}`; }
+function validDocumentationEdits(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : null; }
 
 async function writeSession(session) {
   await ensureStore();
@@ -21,7 +22,7 @@ async function writeSession(session) {
 
 async function createSession({ analysis, source }) {
   const now = new Date().toISOString();
-  return writeSession({ id: createId(), createdAt: now, updatedAt: now, lastAccessedAt: now, expiresAt: new Date(Date.now() + ttlMs()).toISOString(), source, analysis, enrichments: analysis.enrichments || [] });
+  return writeSession({ id: createId(), createdAt: now, updatedAt: now, lastAccessedAt: now, expiresAt: new Date(Date.now() + ttlMs()).toISOString(), source, analysis, enrichments: analysis.enrichments || [], documentationEdits: {} });
 }
 
 function ttlMs() { return Math.max(1, Number(process.env.DOCFORGE_SESSION_TTL_HOURS || 24)) * 60 * 60 * 1000; }
@@ -39,6 +40,12 @@ async function updateSession(id, updates) {
   const session = await getSession(id);
   if (Array.isArray(updates.enrichments)) session.enrichments = updates.enrichments;
   if (updates.analysis && typeof updates.analysis === 'object') session.analysis = updates.analysis;
+  if (Object.prototype.hasOwnProperty.call(updates, 'documentationEdits')) {
+    const edits = validDocumentationEdits(updates.documentationEdits);
+    if (!edits) throw new Error('documentationEdits must be a JSON object.');
+    const allowed = ['overview', 'useCases', 'workflow', 'architecture', 'troubleshooting'];
+    session.documentationEdits = { ...(session.documentationEdits || {}), ...Object.fromEntries(allowed.filter(key => Object.prototype.hasOwnProperty.call(edits, key)).map(key => [key, edits[key]])) };
+  }
   session.updatedAt = new Date().toISOString();
   return writeSession(session);
 }
