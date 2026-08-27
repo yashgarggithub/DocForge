@@ -1,0 +1,24 @@
+name: DocForge documentation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm link
+      - run: npx --no-install docforge check . --config docforge.config.json --json
+      - run: npx --no-install docforge generate . --format markdown --output docforge-output
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docforge-documentation
+          path: docforge-output

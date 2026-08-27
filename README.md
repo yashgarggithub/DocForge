@@ -79,3 +79,31 @@ DOCFORGE_AI_PROVIDER=local npm start
 Click **Generate local suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.
 
 The next layer will generate validated OpenAPI and Markdown documentation, followed by optional structured AI enrichment.
+
+## CLI and CI
+
+DocForge can run locally without starting the web server. Node.js 18 or newer is required:
+
+```bash
+npm link
+docforge analyze . --output .docforge
+docforge generate . --format markdown --output .docforge
+docforge generate . --format openapi --output .docforge
+docforge generate . --format html --output .docforge
+docforge generate . --format bundle --output .docforge
+docforge check . --config docforge.config.json
+```
+
+The optional `docforge.config.json` file controls deterministic CI gates:
+
+```json
+{
+  "outputDir": ".docforge",
+  "minRouteCoverage": 0.8,
+  "minRouteConfidence": 0.7,
+  "minAverageConfidence": 0.75,
+  "includeWarnings": true
+}
+```
+
+`docforge check` exits `0` when quality gates pass, `1` when they fail, `2` for invalid usage/configuration, `3` for analysis failures, and `4` for export failures. A ready-to-copy GitHub Actions workflow is included at `.github/workflows/docforge.yml`; it uploads generated Markdown as a build artifact.

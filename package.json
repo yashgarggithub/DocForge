@@ -2,6 +2,9 @@
   "name": "docforge-ai",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "docforge": "./cli.js"
+  },
   "description": "Source-aware API documentation generator for JavaScript projects.",
   "type": "commonjs",
   "scripts": {
