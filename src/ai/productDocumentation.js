@@ -60,7 +60,15 @@ async function generateProductDraft(analysis, { provider = 'ollama', model } = {
   const result = await generateProviderText(provider, model, promptFor(analysis));
   const draft = validateDraft(parseJson(result.text));
   const evidence = collectProductEvidence({ ...analysis, documentation: draft });
-  for (const section of Object.values(evidence)) for (const item of section || []) { item.origin = 'ai-draft'; item.provider = result.provider; item.model = result.model; }
+  for (const section of Object.values(evidence)) {
+    if (!Array.isArray(section)) continue;
+    for (const item of section) {
+      if (!item || typeof item !== 'object') continue;
+      item.origin = 'ai-draft';
+      item.provider = result.provider;
+      item.model = result.model;
+    }
+  }
   return { draft, provider: result.provider, model: result.model, evidence };
 }
 

@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DocForge — Source-aware API documentation</title>
     <style>
+      .result-loading { display:flex; align-items:center; justify-content:center; gap:10px; min-height:120px; color:var(--muted); }
+      .result-spinner { width:24px; height:24px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:docforge-spin .8s linear infinite; }
+      @keyframes docforge-spin { to { transform:rotate(360deg); } }
       :root { color-scheme: dark; --bg:#09111f; --panel:#101d30; --line:#20324b; --text:#e8f0fb; --muted:#8da2bb; --accent:#6ee7c7; --orange:#f7b267; }
       * { box-sizing:border-box; } body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; background:radial-gradient(circle at 20% 0%,#172943 0,#09111f 44%); color:var(--text); min-height:100vh; }
       main { max-width:1180px; margin:0 auto; padding:38px 22px 70px; } .eyebrow { color:var(--accent); letter-spacing:.14em; text-transform:uppercase; font-size:12px; font-weight:700; } h1 { font-size:clamp(34px,6vw,68px); letter-spacing:-.055em; line-height:.98; max-width:730px; margin:14px 0; } .lede { color:var(--muted); font-size:18px; max-width:650px; line-height:1.55; }
@@ -137,7 +140,9 @@
       window.editSuggestion = index => { if (!latest?.enrichments?.[index]) return; editingIndex = index; renderEnrichments(latest.enrichments); setTimeout(() => { const editor = $(`edit-description-${index}`); if (editor) { editor.focus(); editor.setSelectionRange(editor.value.length, editor.value.length); } }, 0); };
       window.saveSuggestion = async index => { const item = latest?.enrichments?.[index]; const editor = $(`edit-description-${index}`); if (!item || !editor || !editor.value.trim()) return; item.enrichment.description = editor.value.trim(); item.status = 'edited'; editingIndex = null; renderEnrichments(latest.enrichments); if (latest.project.sessionId) await fetch(`/api/sessions/${latest.project.sessionId}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enrichments:latest.enrichments})}); };
       window.cancelSuggestionEdit = () => { editingIndex = null; renderEnrichments(latest.enrichments); };
-      $('enrich').addEventListener('click', () => setTimeout(() => $('enrichments').scrollIntoView({behavior:'smooth', block:'start'}), 100));
+      $('enrich').addEventListener('click', () => setTimeout(() => { $('status').textContent = ''; $('enrichments').innerHTML = '<div class="result-loading"><span class="result-spinner" aria-label="Loading"></span><span>Generating endpoint suggestions…</span></div>'; $('enrichments').scrollIntoView({behavior:'smooth', block:'start'}); }, 0));
+      const showProductDraftLoading = () => setTimeout(() => { $('status').textContent = ''; $('productDraftContent').innerHTML = '<div class="result-loading"><span class="result-spinner" aria-label="Loading"></span><span>Generating product documentation…</span></div>'; $('productDraftPanel').scrollIntoView({behavior:'smooth', block:'start'}); }, 0);
+      $('generateProductDocs').addEventListener('click', showProductDraftLoading); $('retryProductDraft').addEventListener('click', showProductDraftLoading);
       (async () => { const sessionId = new URLSearchParams(location.search).get('session'); if (!sessionId) return; try { const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`); if (!response.ok) return; render(await response.json()); $('status').textContent = 'Restored saved analysis session.'; } catch { $('status').textContent = 'Unable to restore saved session.'; } })();
       loadSessions();
     </script>
