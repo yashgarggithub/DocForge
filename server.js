@@ -3,7 +3,7 @@ const path = require('node:path');
 const os = require('node:os');
 const fs = require('node:fs/promises');
 const { analyzeProject } = require('./src/analyzer');
-const { openApiDocument, markdownDocument } = require('./src/generators');
+const { openApiDocument, markdownDocument, htmlDocument } = require('./src/generators');
 const { enrichEndpoints } = require('./src/ai/enrichment');
 const { cloneGithubRepository } = require('./src/github');
 const { createSession, getSession, updateSession, listSessions, deleteSession, cleanupExpiredSessions, validId } = require('./src/sessions/sessionStore');
@@ -102,7 +102,7 @@ const server = http.createServer(async (req, res) => {
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       const analysis = await analyzeProject(projectPath);
       if (Array.isArray(input.enrichments)) analysis.enrichments = input.enrichments;
-      return sendJson(res, 200, { analysis, openapi: openApiDocument(analysis), markdown: markdownDocument(analysis) });
+      return sendJson(res, 200, { analysis, openapi: openApiDocument(analysis), markdown: markdownDocument(analysis), html: htmlDocument(analysis) });
     }
     if (req.method === 'POST' && req.url === '/api/bundle') {
       const input = await readJson(req);

@@ -3,7 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
-const { openApiDocument, markdownDocument } = require('./generators');
+const { openApiDocument, markdownDocument, htmlDocument } = require('./generators');
 
 const execFileAsync = promisify(execFile);
 
@@ -16,13 +16,14 @@ async function createDocumentationBundle(analysis) {
     'analysis.json': JSON.stringify(analysis, null, 2),
     'architecture.md': `# ${analysis.project?.name || 'Project'} architecture\n\n## Stack\n\n${(analysis.stack || []).map(item => `- ${item}`).join('\n')}\n\n## Frontend consumers\n\n${(analysis.frontendCalls || []).map(call => `- ${call.method} ${call.path} — ${call.sourceFile}:${call.sourceLine}`).join('\n') || 'None detected.'}\n`,
     'configuration.md': `# Configuration\n\nThe following environment variable names were detected. Values are intentionally excluded.\n\n${(analysis.environmentVariables || []).map(name => '- `' + name + '`').join('\n') || 'No environment variables detected.'}\n`,
+    'docs/index.html': htmlDocument(analysis),
   };
   const filePaths = [];
   try {
-    for (const [name, content] of Object.entries(files)) { const target = path.join(directory, name); await fs.writeFile(target, content, 'utf8'); filePaths.push(target); }
+    for (const [name, content] of Object.entries(files)) { const target = path.join(directory, name); await fs.mkdir(path.dirname(target), { recursive: true }); await fs.writeFile(target, content, 'utf8'); filePaths.push(target); }
     const archive = path.join(os.tmpdir(), `${baseName}-docforge-documentation.zip`);
     await fs.rm(archive, { force: true });
-    await execFileAsync('zip', ['-q', '-j', archive, ...filePaths], { timeout: 30000, maxBuffer: 1_000_000 });
+    await execFileAsync('zip', ['-q', '-r', archive, '.'], { cwd: directory, timeout: 30000, maxBuffer: 1_000_000 });
     const content = await fs.readFile(archive);
     await fs.rm(archive, { force: true });
     return { filename: `${baseName}-docforge-documentation.zip`, content };
