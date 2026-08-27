@@ -65,7 +65,7 @@ function parseJson(text) {
   const cleaned = String(text || '').replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('Ollama returned no JSON object.');
+  if (start < 0 || end <= start) throw new Error('AI provider returned no JSON object.');
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
@@ -83,19 +83,38 @@ async function ollamaEnrich(endpoint) {
   return { ...validate(parseJson(payload.message?.content), endpoint), provider: 'ollama', model };
 }
 
+async function geminiEnrich(endpoint) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: 'You produce accurate, concise API documentation grounded in source evidence. Return valid JSON only.' }] }, contents: [{ role: 'user', parts: [{ text: promptFor(endpoint) }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }),
+    signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)),
+  });
+  if (!response.ok) throw new Error(`Gemini returned HTTP ${response.status}. Check the API key and model.`);
+  const payload = await response.json();
+  const text = payload.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
+  if (!text) throw new Error('Gemini returned an empty response.');
+  return { ...validate(parseJson(text), endpoint), provider: 'gemini', model };
+}
+
 async function enrichEndpoints(endpoints) {
   const provider = process.env.DOCFORGE_AI_PROVIDER || 'ollama';
   const results = [];
   for (const endpoint of endpoints) {
-    if (provider !== 'ollama') {
+    if (provider === 'local') {
       results.push({ endpointId: endpoint.id, enrichment: validate(fallback(endpoint), endpoint) });
       continue;
     }
     try {
-      results.push({ endpointId: endpoint.id, enrichment: await ollamaEnrich(endpoint) });
+      const enrichment = provider === 'gemini' ? await geminiEnrich(endpoint) : await ollamaEnrich(endpoint);
+      results.push({ endpointId: endpoint.id, enrichment });
     } catch (error) {
       const local = validate(fallback(endpoint), endpoint);
-      local.warnings.unshift(`Ollama unavailable: ${error.message}`);
+      local.warnings.unshift(`${provider} unavailable: ${error.message}`);
       results.push({ endpointId: endpoint.id, enrichment: local });
     }
   }

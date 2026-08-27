@@ -78,6 +78,17 @@ Start Ollama, then run DocForge. To force fallback mode:
 DOCFORGE_AI_PROVIDER=local npm start
 ```
 
+To opt into Gemini hosted enrichment, set a Gemini API key in your environment:
+
+```bash
+export DOCFORGE_AI_PROVIDER=gemini
+export GEMINI_API_KEY=your_api_key
+export GEMINI_MODEL=gemini-2.5-flash
+npm start
+```
+
+Gemini sends source-derived route metadata to Google's hosted API and may have quotas or usage charges. Keep the key out of source control. If the key is missing or Gemini fails, DocForge falls back to deterministic local suggestions.
+
 Click **Generate local suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.
 
 ## 📖 Beginner's guide
