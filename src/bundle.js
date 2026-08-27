@@ -10,10 +10,11 @@ const execFileAsync = promisify(execFile);
 async function createDocumentationBundle(analysis) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'docforge-bundle-'));
   const baseName = (analysis.project?.name || 'project').replace(/[^a-zA-Z0-9._-]/g, '-');
+  const exportAnalysis = { ...analysis, project: { ...analysis.project, path: analysis.project?.repositoryUrl || analysis.project?.name, localName: undefined } };
   const files = {
     'product-documentation.md': markdownDocument(analysis),
     'openapi.json': JSON.stringify(openApiDocument(analysis), null, 2),
-    'analysis.json': JSON.stringify(analysis, null, 2),
+    'analysis.json': JSON.stringify(exportAnalysis, null, 2),
     'architecture.md': `# ${analysis.project?.name || 'Project'} architecture\n\n## Stack\n\n${(analysis.stack || []).map(item => `- ${item}`).join('\n')}\n\n## Frontend consumers\n\n${(analysis.frontendCalls || []).map(call => `- ${call.method} ${call.path} — ${call.sourceFile}:${call.sourceLine}`).join('\n') || 'None detected.'}\n`,
     'configuration.md': `# Configuration\n\nThe following environment variable names were detected. Values are intentionally excluded.\n\n${(analysis.environmentVariables || []).map(name => '- `' + name + '`').join('\n') || 'No environment variables detected.'}\n`,
     'frameworks.json': JSON.stringify(analysis.frameworks || [], null, 2),
