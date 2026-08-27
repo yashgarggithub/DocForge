@@ -6,6 +6,18 @@
     <title>DocForge — Source-aware API documentation</title>
     <style>
       .result-loading { display:flex; align-items:center; justify-content:center; gap:10px; min-height:120px; color:var(--muted); }
+      .info-popover { position:fixed; top:72px; right:28px; z-index:20; width:min(360px,calc(100vw - 32px)); padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--text); box-shadow:0 18px 50px rgba(0,0,0,.22); }
+      .info-popover h3 { margin:0 0 8px; }
+      .info-popover p { margin:7px 0; color:var(--muted); font-size:13px; line-height:1.5; }
+      .dashboard-nav { display:flex; gap:8px; overflow-x:auto; position:sticky; top:0; z-index:5; padding:10px 0; margin:0 0 8px; background:linear-gradient(var(--bg) 72%, transparent); scrollbar-width:none; }
+      .dashboard-nav button { flex:0 0 auto; min-height:34px; padding:0 13px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--muted); font-size:12px; }
+      .dashboard-nav button.active, .dashboard-nav button:hover { color:var(--text); border-color:var(--accent); background:var(--accent-soft); }
+      .ai-control { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 14px; margin-top:12px; border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line)); border-radius:12px; background:color-mix(in srgb,var(--accent-soft) 55%,var(--panel)); }
+      .ai-control small { color:var(--muted); flex:1 1 100%; }
+      .ai-control select { min-height:36px; border:1px solid var(--line); border-radius:9px; padding:0 30px 0 10px; background:var(--panel); color:var(--text); font:12px inherit; }
+      .ai-control select:focus, .dashboard-nav button:focus, button:focus, input:focus { outline:3px solid color-mix(in srgb,var(--accent) 32%,transparent); outline-offset:2px; }
+      .github-link { color:var(--muted); text-decoration:none; font-size:12px; }
+      .github-link:hover { color:var(--accent); }
       .result-spinner { width:24px; height:24px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:docforge-spin .8s linear infinite; }
       @keyframes docforge-spin { to { transform:rotate(360deg); } }
       :root { color-scheme: dark; --bg:#09111f; --panel:#101d30; --line:#20324b; --text:#e8f0fb; --muted:#8da2bb; --accent:#6ee7c7; --orange:#f7b267; }
@@ -41,19 +53,42 @@
       body.dark { --bg:#0f1020; --panel:#17182c; --line:#30314d; --text:#ececff; --muted:#a3a4bd; --accent:#a8a9ff; --accent-soft:#29294c; --orange:#f4b477; background:linear-gradient(180deg,#111226 0%,#0c0d18 100%); } body.dark .brandmark { background:#38386f; color:#f0f0ff; } body.dark .topbar-pill { color:#b9baff; background:#29294c; border-color:#464675; } body.dark button { background:#5558b7; } body.dark button:hover { background:#6a6dd1; } body.dark .form, body.dark .card { background:rgba(23,24,44,.96); border-color:#30314d; } body.dark button.secondary, body.dark .workflow span, body.dark .pill, body.dark .api-block, body.dark .openapi-nav button { background:#1d1e37; border-color:#343557; color:#c4c5e1; } body.dark button.secondary:hover { background:#29294c; color:#eeeeff; } body.dark code { background:#29294c; border-color:#474878; color:#c3c4ff; } body.dark h1, body.dark h2, body.dark .suggestion h3, body.dark .stat-value { color:#f0f0ff; }
       .doc-editor-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:16px; } .doc-editor-field { display:flex; flex-direction:column; gap:7px; color:var(--muted); font-size:12px; font-weight:700; } .doc-editor-field textarea { width:100%; min-height:116px; resize:vertical; border:1px solid var(--line); border-radius:10px; padding:11px 12px; background:var(--panel); color:var(--text); font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; } .markdown-editor { min-height:520px !important; width:100%; resize:vertical; border:1px solid var(--line); border-radius:10px; padding:14px; background:var(--panel); color:var(--text); font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; } #aiProvider { min-height:34px; border:1px solid var(--line); border-radius:9px; padding:0 30px 0 10px; background:var(--panel); color:var(--text); font:12px inherit; cursor:pointer; } #aiProvider:focus { outline:3px solid color-mix(in srgb,var(--accent) 28%,transparent); outline-offset:2px; } @media(max-width:700px){.doc-editor-grid{grid-template-columns:1fr}#aiProvider{max-width:100%;width:100%;margin:8px 0}}
     </style>
+    <style>
+      :root { --bg:#f8f9ff; --panel:#ffffff; --line:#e3e5f0; --text:#1f2340; --muted:#737895; --accent:#6366f1; --accent-soft:#eef0ff; --orange:#b45309; --shadow:0 16px 45px rgba(45,48,110,.10); }
+      body { background:linear-gradient(180deg,#fbfbff 0%,#f3f4fb 100%); }
+      .topbar { position:sticky; top:0; z-index:10; padding:12px 0; margin-bottom:54px; background:color-mix(in srgb,var(--bg) 88%,transparent); backdrop-filter:blur(14px); }
+      .brandmark { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+      button { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; box-shadow:0 7px 18px rgba(99,102,241,.18); }
+      button:hover { background:linear-gradient(135deg,#5558e8,#7c4ee8); box-shadow:0 10px 24px rgba(99,102,241,.26); }
+      button.secondary { background:var(--panel); color:#4b4f98; border-color:#dfe1f2; box-shadow:none; }
+      button.secondary:hover { background:var(--accent-soft); color:#3f4290; }
+      .topbar-pill { color:#6366f1; background:#eef0ff; border-color:#d9dcff; }
+      .ai-control { background:#f7f7ff; }
+      body.dark { --bg:#0f172a; --panel:#1e293b; --line:#334155; --text:#f8fafc; --muted:#94a3b8; --accent:#6366f1; --accent-soft:#312e81; --orange:#fbbf24; --shadow:0 18px 50px rgba(0,0,0,.28); background:linear-gradient(180deg,#0f172a 0%,#111827 100%); }
+      body.dark .topbar { background:color-mix(in srgb,var(--bg) 88%,transparent); }
+      body.dark .card, body.dark .form { background:#1e293b; border-color:#334155; }
+      body.dark button.secondary, body.dark .ai-control, body.dark .dashboard-nav button { background:#1e293b; color:#c7d2fe; border-color:#334155; }
+      body.dark button.secondary:hover, body.dark .dashboard-nav button.active { background:#312e81; color:#fff; }
+      body.dark .topbar-pill { background:#312e81; border-color:#4338ca; color:#c7d2fe; }
+      body.dark .github-link { color:#a5b4fc; }
+      body.dark input { background:transparent; }
+      body.dark code { background:#273449; border-color:#475569; color:#c4b5fd; }
+      @media(max-width:700px){.topbar{margin-bottom:38px}.topbar .github-link{display:none}.dashboard-nav{top:58px}}
+    </style>
   </head>
   <body>
     <main>
-      <div class="topbar"><div class="brandmark">DF</div><div class="brandcopy"><strong>DocForge</strong><span>Source-aware documentation</span></div><div class="topbar-pill">LOCAL-FIRST</div><fieldset class="theme-choice" aria-label="Appearance"><legend style="position:absolute;width:1px;height:1px;overflow:hidden">Appearance</legend><label><input type="radio" name="theme" value="light"> Light</label><label><input type="radio" name="theme" value="dark"> Dark</label></fieldset></div>
+      <div class="topbar"><div class="brandmark">DF</div><div class="brandcopy"><strong>DocForge</strong><span>Source-aware documentation</span></div><a class="github-link" href="https://github.com/yashgarggithub/DocForge" target="_blank" rel="noreferrer">View on GitHub ↗</a><div class="topbar-pill">LOCAL-FIRST</div><fieldset class="theme-choice" aria-label="Appearance"><legend style="position:absolute;width:1px;height:1px;overflow:hidden">Appearance</legend><label><input type="radio" name="theme" value="light"> Light</label><label><input type="radio" name="theme" value="dark"> Dark</label></fieldset><button class="secondary" id="infoButton" title="Learn how providers and privacy work." aria-expanded="false">ⓘ</button></div><div id="infoPopover" class="info-popover hidden" role="dialog" aria-label="DocForge information"><h3>How DocForge works</h3><p>Analyze a local folder or public GitHub URL, review source-grounded findings, then approve AI suggestions before exporting.</p><p><strong>Providers:</strong> Local mode needs no setup, Ollama runs on your machine, and Gemini requires <code>GEMINI_API_KEY</code>.</p><p>Source files are never executed. Secrets and environment values are excluded.</p></div>
       <div class="eyebrow">DocForge / local project intelligence</div>
       <h1>Turn source code into documentation people can use.</h1>
       <p class="lede">Start with a local JavaScript project. DocForge extracts Express routes, traces React consumers, infers request and response contracts, and surfaces the gaps an AI layer can enrich safely.</p>
       <div class="workflow"><span>1 · Analyze</span><i>→</i><span>2 · Review</span><i>→</i><span>3 · Approve</span><i>→</i><span>4 · Export</span></div>
-      <div class="form"><input id="projectPath" placeholder="/path/to/project or https://github.com/owner/repository" aria-label="Local project path or GitHub URL" /><button id="analyze"><span class="button-icon">↗</span>Analyze project</button></div>
+      <div class="form"><input id="projectPath" placeholder="/path/to/project or https://github.com/owner/repository" aria-label="Local project path or GitHub URL" /><button id="analyze"><span class="button-icon">⌕</span>Analyze &amp; Generate Docs</button></div>
       <small style="color:var(--muted)">Use a local path or a public GitHub URL such as <code>https://github.com/owner/repository</code>.</small>
       <div id="status"></div>
       <section class="card section" id="sessionsSection"><div class="section-head"><h2>Recent projects</h2><div><button class="secondary" id="newAnalysis" title="Clear the current session and start a fresh analysis.">＋ New analysis</button> <button class="secondary" id="refreshSessions" title="Reload saved analysis sessions from local storage.">↻ Refresh</button></div></div><div id="sessions"><small>Loading saved sessions…</small></div></section>
       <section id="results" class="hidden">
+        <nav class="dashboard-nav" aria-label="Analysis sections"><button class="active" data-target="projectMeta">Overview</button><button data-target="routes">API docs</button><button data-target="stack">Architecture</button><button data-target="enrichments">AI suggestions</button><button data-target="warnings">Evidence &amp; warnings</button></nav>
         <div class="card section" id="projectMeta"></div>
         <div class="stats" id="stats"></div>
         <div class="card section"><div class="section-head stack-section-head"><h2>Detected stack</h2><div class="export-actions"><button class="secondary" id="download" title="Download raw scanner results, including routes, dependencies, and source evidence." aria-label="Download analysis JSON">↓ Analysis JSON</button> <button class="secondary" id="previewDocs" title="Preview the product documentation generated from the analyzed project." aria-label="Preview product documentation">▤ Product docs</button> <button class="secondary" id="previewOpenapi" title="Browse the generated API contract interactively using approved suggestions." aria-label="Preview OpenAPI documentation">◉ Preview OpenAPI</button> <button class="secondary" id="downloadOpenapi" title="Download a machine-readable OpenAPI 3 document for API tooling." aria-label="Download OpenAPI JSON">↓ OpenAPI JSON</button> <button class="secondary" id="downloadBundle" title="Download product documentation, OpenAPI, architecture, configuration, and analysis as one ZIP." aria-label="Download documentation bundle">↓ Bundle</button></div></div><div id="stack"></div><div id="frameworkSummary" class="framework-summary"></div></div>
@@ -141,6 +176,9 @@
       window.saveSuggestion = async index => { const item = latest?.enrichments?.[index]; const editor = $(`edit-description-${index}`); if (!item || !editor || !editor.value.trim()) return; item.enrichment.description = editor.value.trim(); item.status = 'edited'; editingIndex = null; renderEnrichments(latest.enrichments); if (latest.project.sessionId) await fetch(`/api/sessions/${latest.project.sessionId}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enrichments:latest.enrichments})}); };
       window.cancelSuggestionEdit = () => { editingIndex = null; renderEnrichments(latest.enrichments); };
       $('enrich').addEventListener('click', () => setTimeout(() => { $('status').textContent = ''; $('enrichments').innerHTML = '<div class="result-loading"><span class="result-spinner" aria-label="Loading"></span><span>Generating endpoint suggestions…</span></div>'; $('enrichments').scrollIntoView({behavior:'smooth', block:'start'}); }, 0));
+      document.querySelectorAll('.dashboard-nav button').forEach(button => button.onclick = () => { document.querySelectorAll('.dashboard-nav button').forEach(item => item.classList.remove('active')); button.classList.add('active'); $(button.dataset.target)?.scrollIntoView({behavior:'smooth', block:'start'}); });
+      $('infoButton').onclick = () => { const popover = $('infoPopover'); const hidden = popover.classList.toggle('hidden'); $('infoButton').setAttribute('aria-expanded', String(!hidden)); };
+      document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('infoPopover').classList.contains('hidden')) { $('infoPopover').classList.add('hidden'); $('infoButton').setAttribute('aria-expanded', 'false'); } });
       const showProductDraftLoading = () => setTimeout(() => { $('status').textContent = ''; $('productDraftContent').innerHTML = '<div class="result-loading"><span class="result-spinner" aria-label="Loading"></span><span>Generating product documentation…</span></div>'; $('productDraftPanel').scrollIntoView({behavior:'smooth', block:'start'}); }, 0);
       $('generateProductDocs').addEventListener('click', showProductDraftLoading); $('retryProductDraft').addEventListener('click', showProductDraftLoading);
       (async () => { const sessionId = new URLSearchParams(location.search).get('session'); if (!sessionId) return; try { const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`); if (!response.ok) return; render(await response.json()); $('status').textContent = 'Restored saved analysis session.'; } catch { $('status').textContent = 'Unable to restore saved session.'; } })();
