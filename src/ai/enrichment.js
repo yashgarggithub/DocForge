@@ -69,6 +69,10 @@ function parseJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
+function normalizeGeminiModel(value) {
+  return String(value || '').trim().replace(/^models\//, '');
+}
+
 async function ollamaEnrich(endpoint, selectedModel) {
   const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
   const model = selectedModel || process.env.OLLAMA_MODEL || 'llama3.2';
@@ -86,7 +90,7 @@ async function ollamaEnrich(endpoint, selectedModel) {
 async function geminiEnrich(endpoint, selectedModel) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
-  const model = selectedModel || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = normalizeGeminiModel(selectedModel || process.env.GEMINI_MODEL || 'gemini-3.6-flash');
   const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
@@ -94,7 +98,11 @@ async function geminiEnrich(endpoint, selectedModel) {
     body: JSON.stringify({ systemInstruction: { parts: [{ text: 'You produce accurate, concise API documentation grounded in source evidence. Return valid JSON only.' }] }, contents: [{ role: 'user', parts: [{ text: promptFor(endpoint) }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }),
     signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)),
   });
-  if (!response.ok) throw new Error(`Gemini returned HTTP ${response.status}. Check the API key and model.`);
+  if (!response.ok) {
+    let detail = '';
+    try { detail = (await response.json()).error?.message || ''; } catch { /* non-JSON provider error */ }
+    throw new Error(`Gemini returned HTTP ${response.status}${detail ? `: ${detail}` : '. Check the API key and model.'}`);
+  }
   const payload = await response.json();
   const text = payload.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
   if (!text) throw new Error('Gemini returned an empty response.');
@@ -113,10 +121,14 @@ async function generateProviderText(provider, model, prompt) {
   if (provider === 'gemini') {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
-    const selectedModel = model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const selectedModel = normalizeGeminiModel(model || process.env.GEMINI_MODEL || 'gemini-3.6-flash');
     const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: 'You produce accurate product documentation grounded in source evidence. Return valid JSON only.' }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }), signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)) });
-    if (!response.ok) throw new Error(`Gemini returned HTTP ${response.status}. Check the API key and model.`);
+    if (!response.ok) {
+      let detail = '';
+      try { detail = (await response.json()).error?.message || ''; } catch { /* non-JSON provider error */ }
+      throw new Error(`Gemini returned HTTP ${response.status}${detail ? `: ${detail}` : '. Check the API key and model.'}`);
+    }
     const payload = await response.json();
     return { text: payload.candidates?.[0]?.content?.parts?.map(part => part.text || '').join(''), provider: 'gemini', model: selectedModel };
   }
@@ -144,4 +156,4 @@ async function enrichEndpoints(endpoints, settings = {}) {
   return results;
 }
 
-module.exports = { enrichEndpoints, generateProviderText, parseJson };
+module.exports = { enrichEndpoints, generateProviderText, parseJson, normalizeGeminiModel };
