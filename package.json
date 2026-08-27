@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "analyze:tokenwise": "node scripts/analyze-tokenwise.js"
+    "analyze:tokenwise": "node scripts/analyze-tokenwise.js",
+    "test": "node test/frameworkAdapters.test.js"
   },
   "engines": {
     "node": ">=18"

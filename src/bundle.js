@@ -16,6 +16,8 @@ async function createDocumentationBundle(analysis) {
     'analysis.json': JSON.stringify(analysis, null, 2),
     'architecture.md': `# ${analysis.project?.name || 'Project'} architecture\n\n## Stack\n\n${(analysis.stack || []).map(item => `- ${item}`).join('\n')}\n\n## Frontend consumers\n\n${(analysis.frontendCalls || []).map(call => `- ${call.method} ${call.path} — ${call.sourceFile}:${call.sourceLine}`).join('\n') || 'None detected.'}\n`,
     'configuration.md': `# Configuration\n\nThe following environment variable names were detected. Values are intentionally excluded.\n\n${(analysis.environmentVariables || []).map(name => '- `' + name + '`').join('\n') || 'No environment variables detected.'}\n`,
+    'frameworks.json': JSON.stringify(analysis.frameworks || [], null, 2),
+    'framework-notes.md': `# Framework notes\n\n${(analysis.frameworks || []).map(item => `## ${item.name}\n\n- **Language:** ${item.language}\n- **Confidence:** ${Math.round((item.confidence || 0) * 100)}%\n- **Files:** ${(item.files || []).join(', ') || 'None'}\n- **Evidence:** ${(item.evidence || []).join(', ') || 'None'}`).join('\n\n') || 'No supported framework was detected.'}\n\nRoute contracts are inferred deterministically from source patterns. Review source evidence for ambiguous or unsupported constructs.\n`,
     'docs/index.html': htmlDocument(analysis),
   };
   const filePaths = [];

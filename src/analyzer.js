@@ -1,8 +1,9 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { adapters } = require('./frameworkAdapters');
 
 const IGNORED = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next']);
-const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
+const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py']);
 
 async function walk(root, current = root, result = []) {
   const entries = await fs.readdir(current, { withFileTypes: true });
@@ -139,7 +140,7 @@ function deriveProductModel({ projectName, readme, stack, routes, frontendCalls,
   if (frontendCalls.length) useCases.push('Use an interactive browser interface to submit requests and review results.');
   if (!useCases.length) useCases.push(`Explore and integrate the ${projectName} application through its documented source and interfaces.`);
   const frontend = stack.filter(item => /React|Vite|Next|Vue|Angular/i.test(item));
-  const backend = stack.filter(item => /Express|Fastify|Nest|Koa|Node/i.test(item));
+  const backend = stack.filter(item => /Express|Fastify|Nest|Koa|Node|FastAPI|Flask/i.test(item));
   const routeIntegrations = [...new Set(routes.flatMap(route => route.integrations || []))];
   const external = [...new Set([...stack.filter(item => !frontend.includes(item) && !backend.includes(item)), ...routeIntegrations])];
   return {
@@ -172,6 +173,7 @@ async function analyzeProject(projectPath) {
   const envNames = new Set();
   const detected = new Set();
   const warnings = [];
+  const frameworkEvidence = new Map();
   let readme = null;
   const packageFiles = files.filter(file => path.basename(file) === 'package.json');
   const readmeFile = files.find(file => /^readme\.md$/i.test(path.basename(file)));
@@ -193,11 +195,21 @@ async function analyzeProject(projectPath) {
   for (const file of files.filter(file => SOURCE_EXTENSIONS.has(path.extname(file)))) {
     const source = await fs.readFile(file, 'utf8');
     const relative = path.relative(projectPath, file);
-    if (/\bapp\.(get|post|put|patch|delete)\(/.test(source)) routes.push(...parseExpressRoutes(source, relative));
+    for (const adapter of adapters) {
+      if (!adapter.sourceExtensions.includes(path.extname(file)) || !adapter.detect(source)) continue;
+      const existing = frameworkEvidence.get(adapter.id) || { id: adapter.id, name: adapter.displayName, language: adapter.language, files: [], confidence: 0.8, evidence: [] };
+      detected.add(adapter.id === 'express' ? 'Express.js' : adapter.displayName);
+      existing.files.push(relative);
+      existing.evidence.push(`${relative}:${lineNumber(source, 0)}`);
+      frameworkEvidence.set(adapter.id, existing);
+      routes.push(...adapter.extractRoutes(source, relative));
+    }
     if (/fetch\(/.test(source)) frontendCalls.push(...traceFrontendCalls(source, relative));
     for (const match of source.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/g)) envNames.add(match[1]);
   }
 
+  const routeIds = new Map();
+  for (const route of routes) { const base = route.id; const count = routeIds.get(base) || 0; routeIds.set(base, count + 1); if (count) route.id = `${base}-${path.basename(route.sourceFile).replace(/\W+/g, '-').replace(/-$/, '')}-${count + 1}`; }
   const routeKeys = new Set(routes.map(route => `${route.method} ${route.path}`));
   for (const call of frontendCalls) {
     const key = `${call.method} ${call.path}`;
@@ -206,7 +218,7 @@ async function analyzeProject(projectPath) {
     else if (!routeKeys.has(key)) warnings.push(`Frontend calls ${key}, but no matching backend route was found.`);
   }
   if (files.some(file => path.basename(file) === '.env' || path.basename(file).startsWith('.env.'))) warnings.push('Environment files were detected and excluded from analysis output.');
-  if (!detected.has('Express.js')) warnings.push('Express.js was not detected; route extraction may be incomplete.');
+  if (!detected.has('Express.js') && routes.length === 0 && frameworkEvidence.size === 0) warnings.push('No supported API framework was detected; route extraction may be incomplete.');
 
   const product = deriveProductModel({ projectName: path.basename(projectPath), readme, stack: [...detected], routes, frontendCalls, dependencies, environmentVariables: [...envNames].sort() });
   return {
@@ -218,6 +230,7 @@ async function analyzeProject(projectPath) {
     dependencies: dependencies.filter((item, index, all) => all.findIndex(other => other.name === item.name) === index),
     environmentVariables: [...envNames].sort(),
     readme,
+    frameworks: [...frameworkEvidence.values()].map(item => ({ ...item, files: [...new Set(item.files)], evidence: [...new Set(item.evidence)] })),
     product,
     architecture: product.architecture,
     warnings,
