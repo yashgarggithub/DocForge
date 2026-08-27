@@ -156,8 +156,16 @@ const server = http.createServer(async (req, res) => {
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       const provider = ['ollama', 'gemini', 'local'].includes(input.provider) ? input.provider : (process.env.DOCFORGE_AI_PROVIDER || 'ollama');
       const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : undefined;
-      const analysis = await analyzeProject(projectPath);
-      analysis.project.name = input.projectName ? String(input.projectName) : await displayNameForProject(projectPath, analysis.project.name);
+      let analysis;
+      let session;
+      if (input.sessionId && validId.test(input.sessionId)) {
+        try { session = await getSession(input.sessionId); } catch { /* Fall back to a fresh analysis when the session is unavailable. */ }
+      }
+      analysis = session?.analysis || await analyzeProject(projectPath);
+      analysis.project = analysis.project || {};
+      analysis.project.name = input.projectName ? String(input.projectName) : (analysis.project.name || await displayNameForProject(projectPath, analysis.project.name));
+      if (session?.source?.repositoryUrl) analysis.project.repositoryUrl = session.source.repositoryUrl;
+      if (session?.source?.commit) analysis.project.commit = session.source.commit;
       const result = await generateProductDraft(analysis, { provider, model });
       return sendJson(res, 200, result);
     }

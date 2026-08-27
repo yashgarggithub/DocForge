@@ -37,8 +37,11 @@ function validateDraft(value) {
 }
 
 function contextFor(analysis) {
+  const project = { name: analysis.project?.name };
+  if (analysis.project?.repositoryUrl) project.repositoryUrl = analysis.project.repositoryUrl;
+  if (analysis.project?.commit) project.commit = analysis.project.commit;
   return {
-    project: { name: analysis.project?.name, repositoryUrl: analysis.project?.repositoryUrl || null },
+    project,
     stack: analysis.stack || [], frameworks: analysis.frameworks || [],
     readme: { title: analysis.readme?.title || null, overview: (analysis.readme?.overview || '').slice(0, 2400), sections: Object.fromEntries(Object.entries(analysis.readme?.sections || {}).slice(0, 8).map(([key, value]) => [key, String(value).slice(0, 1800)])) },
     routes: (analysis.routes || []).slice(0, 80).map(route => ({ method: route.method, path: route.path, sourceFile: route.sourceFile, sourceLine: route.sourceLine, requestFields: route.requestFields, responses: route.responses, integrations: route.integrations, sourceEvidence: String(route.sourceEvidence || '').slice(0, 1200) })),
@@ -47,7 +50,7 @@ function contextFor(analysis) {
 }
 
 function promptFor(analysis) {
-  return `Create a developer-facing product documentation draft from the evidence below. Explain what the product is, who uses it, its real use cases, request-to-response workflow, architecture, and troubleshooting. Use only supplied evidence. Do not invent commands, authentication, business rules, or components. If evidence is incomplete, add a warning. Return JSON only with exactly these keys: overview, audience, useCases, workflow, architecture, troubleshooting, warnings, confidence. Never include absolute filesystem paths, temporary clone names, secrets, environment values, or Markdown fences.\n\nEVIDENCE:\n${JSON.stringify(contextFor(analysis), null, 2)}`;
+  return `Create a developer-facing product documentation draft from the evidence below. Explain what the product is, who uses it, its real use cases, request-to-response workflow, architecture, and troubleshooting. Use only supplied evidence. Do not invent commands, authentication, business rules, or components. If evidence is incomplete, add a warning using clear wording such as "Some internal implementation details could not be verified from the available source excerpts." Do not turn absent optional metadata into a troubleshooting item. Return JSON only with exactly these keys: overview, audience, useCases, workflow, architecture, troubleshooting, warnings, confidence. Never include absolute filesystem paths, temporary clone names, secrets, environment values, or Markdown fences.\n\nEVIDENCE:\n${JSON.stringify(contextFor(analysis), null, 2)}`;
 }
 
 function deterministicDraft(analysis) {
