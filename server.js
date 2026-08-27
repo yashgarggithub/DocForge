@@ -89,6 +89,7 @@ const server = http.createServer(async (req, res) => {
       const session = await getSession(sessionId);
       const analysis = session.analysis;
       analysis.enrichments = session.enrichments || [];
+      if (analysis.project.repositoryUrl) analysis.project.name = analysis.project.repositoryUrl.split('/').filter(Boolean).pop();
       analysis.project.sessionId = session.id;
       return sendJson(res, 200, analysis);
     }
