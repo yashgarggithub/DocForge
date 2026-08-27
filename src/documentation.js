@@ -9,6 +9,7 @@ function mergeDocumentation(analysis, edits = {}) {
     architecture: Array.isArray(edits.architecture) && edits.architecture.length ? edits.architecture : (analysis.architecture?.layers || []),
     troubleshooting: Array.isArray(edits.troubleshooting) ? edits.troubleshooting : (analysis.warnings || []).map(warning => ({ title: 'Analysis warning', guidance: warning }))
   };
+  if (typeof edits.markdown === 'string' && edits.markdown.trim()) merged.markdown = edits.markdown;
   return { ...analysis, documentation: merged, documentationEdits: edits };
 }
 

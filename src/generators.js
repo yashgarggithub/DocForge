@@ -39,6 +39,9 @@ function openApiDocument(analysis) {
 }
 
 function markdownDocument(analysis) {
+  if (typeof analysis.documentation?.markdown === 'string' && analysis.documentation.markdown.trim()) {
+    return analysis.documentation.markdown;
+  }
   const readme = analysis.readme || {};
   const product = analysis.product || {};
   const architecture = analysis.architecture || { layers: [] };

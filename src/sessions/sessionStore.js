@@ -43,7 +43,7 @@ async function updateSession(id, updates) {
   if (Object.prototype.hasOwnProperty.call(updates, 'documentationEdits')) {
     const edits = validDocumentationEdits(updates.documentationEdits);
     if (!edits) throw new Error('documentationEdits must be a JSON object.');
-    const allowed = ['overview', 'useCases', 'workflow', 'architecture', 'troubleshooting'];
+    const allowed = ['overview', 'useCases', 'workflow', 'architecture', 'troubleshooting', 'markdown'];
     session.documentationEdits = { ...(session.documentationEdits || {}), ...Object.fromEntries(allowed.filter(key => Object.prototype.hasOwnProperty.call(edits, key)).map(key => [key, edits[key]])) };
   }
   session.updatedAt = new Date().toISOString();
