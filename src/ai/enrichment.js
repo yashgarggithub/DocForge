@@ -101,6 +101,28 @@ async function geminiEnrich(endpoint, selectedModel) {
   return { ...validate(parseJson(text), endpoint), provider: 'gemini', model };
 }
 
+async function generateProviderText(provider, model, prompt) {
+  if (provider === 'ollama') {
+    const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+    const selectedModel = model || process.env.OLLAMA_MODEL || 'llama3.2';
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: selectedModel, stream: false, format: 'json', messages: [{ role: 'system', content: 'You produce accurate product documentation grounded in source evidence. Return valid JSON only.' }, { role: 'user', content: prompt }] }), signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)) });
+    if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}. Is the model installed?`);
+    const payload = await response.json();
+    return { text: payload.message?.content, provider: 'ollama', model: selectedModel };
+  }
+  if (provider === 'gemini') {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
+    const selectedModel = model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: 'You produce accurate product documentation grounded in source evidence. Return valid JSON only.' }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }), signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)) });
+    if (!response.ok) throw new Error(`Gemini returned HTTP ${response.status}. Check the API key and model.`);
+    const payload = await response.json();
+    return { text: payload.candidates?.[0]?.content?.parts?.map(part => part.text || '').join(''), provider: 'gemini', model: selectedModel };
+  }
+  throw new Error(`Unsupported AI provider: ${provider}`);
+}
+
 async function enrichEndpoints(endpoints, settings = {}) {
   const provider = settings.provider || process.env.DOCFORGE_AI_PROVIDER || 'ollama';
   const model = settings.model || null;
@@ -122,4 +144,4 @@ async function enrichEndpoints(endpoints, settings = {}) {
   return results;
 }
 
-module.exports = { enrichEndpoints };
+module.exports = { enrichEndpoints, generateProviderText, parseJson };

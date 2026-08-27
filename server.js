@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const { analyzeProject } = require('./src/analyzer');
 const { openApiDocument, markdownDocument, htmlDocument } = require('./src/generators');
 const { enrichEndpoints } = require('./src/ai/enrichment');
+const { generateProductDraft } = require('./src/ai/productDocumentation');
 const { cloneGithubRepository } = require('./src/github');
 const { createSession, getSession, updateSession, listSessions, deleteSession, cleanupExpiredSessions, validId } = require('./src/sessions/sessionStore');
 const { createDocumentationBundle } = require('./src/bundle');
@@ -148,6 +149,17 @@ const server = http.createServer(async (req, res) => {
       const enrichments = await enrichEndpoints(selected, { provider, model });
       if (input.sessionId && validId.test(input.sessionId)) await updateSession(input.sessionId, { enrichments });
       return sendJson(res, 200, { enrichments, mode: provider || process.env.DOCFORGE_AI_PROVIDER || 'ollama', model: model || null });
+    }
+    if (req.method === 'POST' && req.url === '/api/generate-product-docs') {
+      const input = await readJson(req);
+      const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
+      if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
+      const provider = ['ollama', 'gemini', 'local'].includes(input.provider) ? input.provider : (process.env.DOCFORGE_AI_PROVIDER || 'ollama');
+      const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : undefined;
+      const analysis = await analyzeProject(projectPath);
+      analysis.project.name = input.projectName ? String(input.projectName) : await displayNameForProject(projectPath, analysis.project.name);
+      const result = await generateProductDraft(analysis, { provider, model });
+      return sendJson(res, 200, result);
     }
     return serveStatic(req, res);
   } catch (error) {
