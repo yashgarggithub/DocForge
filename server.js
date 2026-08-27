@@ -143,9 +143,11 @@ const server = http.createServer(async (req, res) => {
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       const analysis = await analyzeProject(projectPath);
       const selected = req.url === '/api/enrich' && Array.isArray(input.endpointIds) ? analysis.routes.filter(route => input.endpointIds.includes(route.id)) : analysis.routes;
-      const enrichments = await enrichEndpoints(selected);
+      const provider = ['ollama', 'gemini', 'local'].includes(input.provider) ? input.provider : undefined;
+      const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : undefined;
+      const enrichments = await enrichEndpoints(selected, { provider, model });
       if (input.sessionId && validId.test(input.sessionId)) await updateSession(input.sessionId, { enrichments });
-      return sendJson(res, 200, { enrichments, mode: process.env.DOCFORGE_AI_PROVIDER || 'ollama' });
+      return sendJson(res, 200, { enrichments, mode: provider || process.env.DOCFORGE_AI_PROVIDER || 'ollama', model: model || null });
     }
     return serveStatic(req, res);
   } catch (error) {

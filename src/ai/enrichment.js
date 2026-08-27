@@ -69,9 +69,9 @@ function parseJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function ollamaEnrich(endpoint) {
+async function ollamaEnrich(endpoint, selectedModel) {
   const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-  const model = process.env.OLLAMA_MODEL || 'llama3.2';
+  const model = selectedModel || process.env.OLLAMA_MODEL || 'llama3.2';
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,10 +83,10 @@ async function ollamaEnrich(endpoint) {
   return { ...validate(parseJson(payload.message?.content), endpoint), provider: 'ollama', model };
 }
 
-async function geminiEnrich(endpoint) {
+async function geminiEnrich(endpoint, selectedModel) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = selectedModel || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
@@ -101,8 +101,9 @@ async function geminiEnrich(endpoint) {
   return { ...validate(parseJson(text), endpoint), provider: 'gemini', model };
 }
 
-async function enrichEndpoints(endpoints) {
-  const provider = process.env.DOCFORGE_AI_PROVIDER || 'ollama';
+async function enrichEndpoints(endpoints, settings = {}) {
+  const provider = settings.provider || process.env.DOCFORGE_AI_PROVIDER || 'ollama';
+  const model = settings.model || null;
   const results = [];
   for (const endpoint of endpoints) {
     if (provider === 'local') {
@@ -110,7 +111,7 @@ async function enrichEndpoints(endpoints) {
       continue;
     }
     try {
-      const enrichment = provider === 'gemini' ? await geminiEnrich(endpoint) : await ollamaEnrich(endpoint);
+      const enrichment = provider === 'gemini' ? await geminiEnrich(endpoint, model) : await ollamaEnrich(endpoint, model);
       results.push({ endpointId: endpoint.id, enrichment });
     } catch (error) {
       const local = validate(fallback(endpoint), endpoint);
