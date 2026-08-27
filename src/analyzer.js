@@ -127,8 +127,9 @@ function parseReadme(content) {
   }
   const overviewSection = Object.entries(sections).find(([name]) => /overview|what it does|why/i.test(name));
   const workflowSection = Object.entries(sections).find(([name]) => /how it works|workflow/i.test(name));
-  const overview = overviewSection?.[1] || workflowSection?.[1] || content.split(/\n\s*\n/).slice(1, 3).join('\n\n');
-  return { title, overview: overview.slice(0, 2400), sections: Object.fromEntries(Object.entries(sections).filter(([name]) => !/^api endpoints|ui components|development$/i.test(name))) };
+  const intro = content.split(/^##\s+/m)[0].split('\n').filter(line => line.trim() && !/^\s*(#|!?\[?\[?!?)/.test(line) && !/^\s*[-*_]{3,}\s*$/.test(line)).join('\n').trim();
+  const overview = overviewSection?.[1] || workflowSection?.[1] || (intro.replace(/^#\s+.+$/m, '').trim() || null);
+  return { title, overview: overview ? overview.slice(0, 2400) : null, sections: Object.fromEntries(Object.entries(sections).filter(([name]) => !/^api endpoints|ui components|development$/i.test(name))) };
 }
 
 function deriveProductModel({ projectName, readme, stack, routes, frontendCalls, dependencies, environmentVariables }) {
