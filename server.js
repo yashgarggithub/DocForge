@@ -144,7 +144,7 @@ const server = http.createServer(async (req, res) => {
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
       const analysis = await analyzeProject(projectPath);
       const selected = req.url === '/api/enrich' && Array.isArray(input.endpointIds) ? analysis.routes.filter(route => input.endpointIds.includes(route.id)) : analysis.routes;
-      const provider = ['ollama', 'gemini', 'local'].includes(input.provider) ? input.provider : undefined;
+      const provider = ['ollama', 'gemini', 'openai', 'local'].includes(input.provider) ? input.provider : undefined;
       const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : undefined;
       const enrichments = await enrichEndpoints(selected, { provider, model });
       if (input.sessionId && validId.test(input.sessionId)) await updateSession(input.sessionId, { enrichments });
@@ -154,7 +154,7 @@ const server = http.createServer(async (req, res) => {
       const input = await readJson(req);
       const projectPath = input.projectPath || process.env.DOCFORGE_PROJECT_PATH;
       if (!projectPath || !path.isAbsolute(projectPath)) return sendJson(res, 400, { error: 'projectPath must be an absolute local path.' });
-      const provider = ['ollama', 'gemini', 'local'].includes(input.provider) ? input.provider : (process.env.DOCFORGE_AI_PROVIDER || 'ollama');
+      const provider = ['ollama', 'gemini', 'openai', 'local'].includes(input.provider) ? input.provider : (process.env.DOCFORGE_AI_PROVIDER || 'ollama');
       const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : undefined;
       let analysis;
       let session;

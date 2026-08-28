@@ -73,6 +73,22 @@ function normalizeGeminiModel(value) {
   return String(value || '').trim().replace(/^models\//, '');
 }
 
+const endpointSchema = { type: 'object', additionalProperties: false, properties: { summary: { type: 'string' }, description: { type: 'string' }, requestFields: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { name: { type: 'string' }, description: { type: 'string' }, example: {}, confidence: { type: 'number' } }, required: ['name', 'description', 'example', 'confidence'] } }, responseDescription: { type: 'string' }, examples: { type: 'object', additionalProperties: false, properties: { request: { type: 'object', additionalProperties: true }, response: { type: 'object', additionalProperties: true } }, required: ['request', 'response'] }, warnings: { type: 'array', items: { type: 'string' } }, assumptions: { type: 'array', items: { type: 'string' } }, confidence: { type: 'number' } }, required: ['summary', 'description', 'requestFields', 'responseDescription', 'examples', 'warnings', 'assumptions', 'confidence'] };
+const productSchema = { type: 'object', additionalProperties: false, properties: { overview: { type: 'string' }, audience: { type: 'string' }, useCases: { type: 'array', items: { type: 'string' } }, workflow: { type: 'array', items: { type: 'string' } }, architecture: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { name: { type: 'string' }, technologies: { type: 'array', items: { type: 'string' } }, responsibilities: { type: 'array', items: { type: 'string' } } }, required: ['name', 'technologies', 'responsibilities'] } }, troubleshooting: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { title: { type: 'string' }, guidance: { type: 'string' } }, required: ['title', 'guidance'] } }, warnings: { type: 'array', items: { type: 'string' } }, confidence: { type: 'number' } }, required: ['overview', 'audience', 'useCases', 'workflow', 'architecture', 'troubleshooting', 'warnings', 'confidence'] };
+
+async function openaiText(prompt, model, schema, schemaName) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
+  const selectedModel = String(model || process.env.OPENAI_MODEL || 'gpt-5-codex').trim();
+  const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
+  const response = await fetch(`${baseUrl}/responses`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: selectedModel, store: false, instructions: 'Return accurate developer documentation grounded only in the supplied source evidence.', input: prompt, text: { format: { type: 'json_schema', name: schemaName, strict: true, schema } } }), signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)) });
+  if (!response.ok) { let detail = ''; try { detail = (await response.json()).error?.message || ''; } catch { /* non-JSON provider error */ } throw new Error(`OpenAI returned HTTP ${response.status}${detail ? `: ${detail}` : '. Check API access, billing, key, and model.'}`); }
+  const payload = await response.json();
+  const text = payload.output_text || payload.output?.flatMap(item => item.content || []).map(item => item.text || '').join('');
+  if (!text) throw new Error('OpenAI returned an empty response.');
+  return { text, provider: 'openai', model: selectedModel };
+}
+
 async function ollamaEnrich(endpoint, selectedModel) {
   const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
   const model = selectedModel || process.env.OLLAMA_MODEL || 'llama3.2';
@@ -109,6 +125,11 @@ async function geminiEnrich(endpoint, selectedModel) {
   return { ...validate(parseJson(text), endpoint), provider: 'gemini', model };
 }
 
+async function openaiEnrich(endpoint, selectedModel) {
+  const result = await openaiText(promptFor(endpoint), selectedModel, endpointSchema, 'docforge_endpoint');
+  return { ...validate(parseJson(result.text), endpoint), provider: result.provider, model: result.model };
+}
+
 async function generateProviderText(provider, model, prompt) {
   if (provider === 'ollama') {
     const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
@@ -132,6 +153,7 @@ async function generateProviderText(provider, model, prompt) {
     const payload = await response.json();
     return { text: payload.candidates?.[0]?.content?.parts?.map(part => part.text || '').join(''), provider: 'gemini', model: selectedModel };
   }
+  if (provider === 'openai') return openaiText(prompt, model, productSchema, 'docforge_product');
   throw new Error(`Unsupported AI provider: ${provider}`);
 }
 
@@ -145,7 +167,7 @@ async function enrichEndpoints(endpoints, settings = {}) {
       continue;
     }
     try {
-      const enrichment = provider === 'gemini' ? await geminiEnrich(endpoint, model) : await ollamaEnrich(endpoint, model);
+      const enrichment = provider === 'gemini' ? await geminiEnrich(endpoint, model) : provider === 'openai' ? await openaiEnrich(endpoint, model) : await ollamaEnrich(endpoint, model);
       results.push({ endpointId: endpoint.id, enrichment });
     } catch (error) {
       const local = validate(fallback(endpoint), endpoint);

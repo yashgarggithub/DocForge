@@ -74,6 +74,7 @@ Enrichment uses Ollama locally by default. Analyzed source metadata is sent only
 - **Local deterministic** — always available; requires no model or API key.
 - **Ollama** — runs a local model; requires Ollama and a downloaded model.
 - **Gemini** — uses Google’s hosted API; requires `GEMINI_API_KEY`.
+- **OpenAI** — uses the OpenAI Responses API; requires `OPENAI_API_KEY` and separate API project access.
 
 Install Ollama separately, then download a local instruction-following model:
 
@@ -105,6 +106,24 @@ curl -sS -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini
 ```
 
 Gemini sends source-derived route metadata to Google's hosted API and may have quotas or usage charges. Keep the key out of source control. If the key is missing or Gemini fails, DocForge falls back to deterministic local suggestions.
+
+OpenAI API access is separate from a ChatGPT or Codex subscription. Configure an API-enabled project before selecting OpenAI:
+
+```bash
+export DOCFORGE_AI_PROVIDER=openai
+export OPENAI_API_KEY=your_api_key
+export OPENAI_MODEL=gpt-5-codex
+npm start
+```
+
+Verify OpenAI API access with a minimal structured response:
+
+```bash
+curl -sS https://api.openai.com/v1/responses \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-5-codex","store":false,"input":"Reply with JSON: {\"ok\":true}","text":{"format":{"type":"json_schema","name":"health_check","strict":true,"schema":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}}}}'
+```
 
 Click **Generate suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.
 
