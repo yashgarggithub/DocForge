@@ -112,7 +112,7 @@ OpenAI API access is separate from a ChatGPT or Codex subscription. Configure an
 ```bash
 export DOCFORGE_AI_PROVIDER=openai
 export OPENAI_API_KEY=your_api_key
-export OPENAI_MODEL=gpt-5-codex
+export OPENAI_MODEL=gpt-5.4
 npm start
 ```
 
@@ -122,7 +122,7 @@ Verify OpenAI API access with a minimal structured response:
 curl -sS https://api.openai.com/v1/responses \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5-codex","store":false,"input":"Reply with JSON: {\"ok\":true}","text":{"format":{"type":"json_schema","name":"health_check","strict":true,"schema":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}}}}'
+  -d '{"model":"gpt-5.4","store":false,"input":"Reply with JSON: {\"ok\":true}","text":{"format":{"type":"json_schema","name":"health_check","strict":true,"schema":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}}}}'
 ```
 
 Click **Generate suggestions** after analyzing a project. Approved suggestions are included when downloading OpenAPI or Markdown exports.

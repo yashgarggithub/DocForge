@@ -79,7 +79,7 @@ const productSchema = { type: 'object', additionalProperties: false, properties:
 async function openaiText(prompt, model, schema, schemaName) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
-  const selectedModel = String(model || process.env.OPENAI_MODEL || 'gpt-5-codex').trim();
+  const selectedModel = String(model || process.env.OPENAI_MODEL || 'gpt-5.4').trim();
   const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
   const response = await fetch(`${baseUrl}/responses`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: selectedModel, store: false, instructions: 'Return accurate developer documentation grounded only in the supplied source evidence.', input: prompt, text: { format: { type: 'json_schema', name: schemaName, strict: true, schema } } }), signal: AbortSignal.timeout(Number(process.env.DOCFORGE_AI_TIMEOUT_MS || 30000)) });
   if (!response.ok) { let detail = ''; try { detail = (await response.json()).error?.message || ''; } catch { /* non-JSON provider error */ } throw new Error(`OpenAI returned HTTP ${response.status}${detail ? `: ${detail}` : '. Check API access, billing, key, and model.'}`); }
